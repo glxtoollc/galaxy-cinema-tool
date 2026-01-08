@@ -752,8 +752,12 @@
                 <div class="menu-wrapper">
                     <button class="menu-btn" onclick="toggleDataMenu()">☰ Menu</button>
                     <div class="dropdown-menu" id="dataMenuDropdown">
-                        <div class="dropdown-item" onclick="importData()">📥 Nạp dữ liệu</div>
-                        <div class="dropdown-item" onclick="exportData()">📤 Xuất dữ liệu</div>
+                        <div class="dropdown-item" onclick="importInitialDataFromCloud()">☁️ Import data ban đầu</div>
+                        <div class="dropdown-item" onclick="loadLatestFromCloud()">📥 Tải data đã lưu</div>
+                        <div class="dropdown-item" onclick="saveDataToCloud()">💾 Lưu data ngày này</div>
+                        <div style="border-top: 1px solid #e5e7eb; margin: 4px 0;"></div>
+                        <div class="dropdown-item" onclick="importData()">📥 Import JSON từ máy</div>
+                        <div class="dropdown-item" onclick="exportData()">📤 Export JSON</div>
                     </div>
                 </div>
             </div>
@@ -1288,6 +1292,115 @@
             };
             reader.readAsText(file);
             event.target.value = '';
+        }
+
+        // ==================== CLOUD STORAGE FUNCTIONS ====================
+        
+        // JSONbin.io configuration
+        const JSONBIN_CONFIG = {
+            INITIAL_BIN_ID: '695f47f2ae596e708fccdf9b',  // Bin cho data ban đầu (template)
+            LATEST_BIN_ID: '695f493aae596e708fcce1d1',    // Bin cho data mới nhất
+            API_KEY: '$2a$10$Q27440iC98VOZktauuL.Iu7q9IAhiG9PVaa5fSZXlhBDlBwnCzOnu',
+            BASE_URL: 'https://api.jsonbin.io/v3/b'
+        };
+        
+        // Import data ban đầu từ cloud
+        async function importInitialDataFromCloud() {
+            const dropdown = document.getElementById('dataMenuDropdown');
+            if (dropdown) dropdown.classList.remove('show');
+            
+            showToast('☁️ Đang tải data ban đầu...', 'info');
+            
+            try {
+                const response = await fetch(`${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.INITIAL_BIN_ID}/latest`, {
+                    headers: {
+                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Không thể tải data từ cloud');
+                }
+                
+                const result = await response.json();
+                moviesData = result.record;
+                
+                saveToHistory();
+                saveToLocalStorage();
+                loadData();
+                
+                showToast('✅ Đã tải data ban đầu thành công!', 'success');
+                console.log('✅ Imported initial data from cloud');
+            } catch (error) {
+                showToast('❌ Lỗi: Không thể tải data từ cloud!', 'error');
+                console.error('Cloud import error:', error);
+            }
+        }
+        
+        // Tải data đã lưu (ngày trước) từ cloud
+        async function loadLatestFromCloud() {
+            const dropdown = document.getElementById('dataMenuDropdown');
+            if (dropdown) dropdown.classList.remove('show');
+            
+            showToast('☁️ Đang tải data đã lưu...', 'info');
+            
+            try {
+                const response = await fetch(`${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}/latest`, {
+                    headers: {
+                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Không thể tải data từ cloud');
+                }
+                
+                const result = await response.json();
+                moviesData = result.record;
+                
+                saveToHistory();
+                saveToLocalStorage();
+                loadData();
+                
+                showToast('✅ Đã tải data đã lưu thành công!', 'success');
+                console.log('✅ Loaded latest data from cloud');
+            } catch (error) {
+                showToast('❌ Lỗi: Không thể tải data từ cloud!', 'error');
+                console.error('Cloud load error:', error);
+            }
+        }
+        
+        // Lưu data ngày này lên cloud
+        async function saveDataToCloud() {
+            const dropdown = document.getElementById('dataMenuDropdown');
+            if (dropdown) dropdown.classList.remove('show');
+            
+            if (!confirm('Lưu data ngày này lên cloud?\n\n⚠️ Sẽ ghi đè data cũ và cả team sẽ thấy data mới này.')) {
+                return;
+            }
+            
+            showToast('☁️ Đang lưu lên cloud...', 'info');
+            
+            try {
+                const response = await fetch(`${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
+                    },
+                    body: JSON.stringify(moviesData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Không thể lưu data lên cloud');
+                }
+                
+                showToast('✅ Đã lưu data lên cloud thành công!', 'success');
+                console.log('✅ Saved data to cloud');
+            } catch (error) {
+                showToast('❌ Lỗi: Không thể lưu lên cloud!', 'error');
+                console.error('Cloud save error:', error);
+            }
         }
 
         async function exportData() {
