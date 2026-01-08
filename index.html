@@ -1301,8 +1301,15 @@
             INITIAL_BIN_ID: '695f47f2ae596e708fccdf9b',  // Bin cho data ban đầu (template)
             LATEST_BIN_ID: '695f493aae596e708fcce1d1',    // Bin cho data mới nhất
             API_KEY: '$2a$10$1kOZAHIAml7q7LKKQFvvN.vaRkCPkbJD5s8zwTrWQXic3wgxdmUtS',
-            BASE_URL: 'https://api.jsonbin.io/v3/b'
+            BASE_URL: 'https://api.jsonbin.io/v3/b',
+            PROXY_URL: 'https://corsproxy.io/?'  // CORS proxy
         };
+        
+        // Helper function to make request through proxy
+        async function fetchWithProxy(url, options = {}) {
+            const proxiedUrl = JSONBIN_CONFIG.PROXY_URL + encodeURIComponent(url);
+            return fetch(proxiedUrl, options);
+        }
         
         // Import data ban đầu từ cloud
         async function importInitialDataFromCloud() {
@@ -1312,7 +1319,8 @@
             showToast('☁️ Đang tải data ban đầu...', 'info');
             
             try {
-                const response = await fetch(`${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.INITIAL_BIN_ID}/latest`, {
+                const url = `${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.INITIAL_BIN_ID}/latest`;
+                const response = await fetchWithProxy(url, {
                     method: 'GET',
                     headers: {
                         'X-Master-Key': JSONBIN_CONFIG.API_KEY
@@ -1347,7 +1355,8 @@
             showToast('☁️ Đang tải data đã lưu...', 'info');
             
             try {
-                const response = await fetch(`${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}/latest`, {
+                const url = `${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}/latest`;
+                const response = await fetchWithProxy(url, {
                     method: 'GET',
                     headers: {
                         'X-Master-Key': JSONBIN_CONFIG.API_KEY
@@ -1386,7 +1395,8 @@
             showToast('☁️ Đang lưu lên cloud...', 'info');
             
             try {
-                const response = await fetch(`${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}`, {
+                const url = `${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}`;
+                const response = await fetchWithProxy(url, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
