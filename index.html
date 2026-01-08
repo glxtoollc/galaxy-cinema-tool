@@ -1301,14 +1301,19 @@
             INITIAL_BIN_ID: '695f47f2ae596e708fccdf9b',  // Bin cho data ban đầu (template)
             LATEST_BIN_ID: '695f493aae596e708fcce1d1',    // Bin cho data mới nhất
             API_KEY: '$2a$10$1kOZAHIAml7q7LKKQFvvN.vaRkCPkbJD5s8zwTrWQXic3wgxdmUtS',
-            BASE_URL: 'https://api.jsonbin.io/v3/b',
-            PROXY_URL: 'https://corsproxy.io/?'  // CORS proxy
+            BASE_URL: 'https://api.jsonbin.io/v3/b'
         };
         
-        // Helper function to make request through proxy
-        async function fetchWithProxy(url, options = {}) {
-            const proxiedUrl = JSONBIN_CONFIG.PROXY_URL + encodeURIComponent(url);
-            return fetch(proxiedUrl, options);
+        // Helper function to make request through AllOrigins proxy
+        async function fetchThroughProxy(url, options = {}) {
+            // For GET requests
+            if (!options.method || options.method === 'GET') {
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                return fetch(proxyUrl);
+            }
+            
+            // For PUT requests - direct call (GitHub Pages should allow this)
+            return fetch(url, options);
         }
         
         // Import data ban đầu từ cloud
@@ -1320,16 +1325,10 @@
             
             try {
                 const url = `${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.INITIAL_BIN_ID}/latest`;
-                const response = await fetchWithProxy(url, {
-                    method: 'GET',
-                    headers: {
-                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
-                    }
-                });
+                const response = await fetchThroughProxy(url);
                 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                    throw new Error(`HTTP ${response.status}`);
                 }
                 
                 const result = await response.json();
@@ -1356,16 +1355,10 @@
             
             try {
                 const url = `${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}/latest`;
-                const response = await fetchWithProxy(url, {
-                    method: 'GET',
-                    headers: {
-                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
-                    }
-                });
+                const response = await fetchThroughProxy(url);
                 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                    throw new Error(`HTTP ${response.status}`);
                 }
                 
                 const result = await response.json();
@@ -1396,23 +1389,18 @@
             
             try {
                 const url = `${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}`;
-                const response = await fetchWithProxy(url, {
+                const response = await fetchThroughProxy(url, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Master-Key': JSONBIN_CONFIG.API_KEY,
-                        'X-Bin-Versioning': 'false'
+                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
                     },
                     body: JSON.stringify(moviesData)
                 });
                 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                    throw new Error(`HTTP ${response.status}`);
                 }
-                
-                const result = await response.json();
-                console.log('Save response:', result);
                 
                 showToast('✅ Đã lưu data lên cloud thành công!', 'success');
                 console.log('✅ Saved data to cloud');
