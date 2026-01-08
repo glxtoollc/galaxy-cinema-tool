@@ -1313,13 +1313,14 @@
             
             try {
                 const response = await fetch(`${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.INITIAL_BIN_ID}/latest`, {
+                    method: 'GET',
                     headers: {
-                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
+                        'X-Access-Key': JSONBIN_CONFIG.API_KEY
                     }
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Không thể tải data từ cloud');
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 const result = await response.json();
@@ -1346,13 +1347,14 @@
             
             try {
                 const response = await fetch(`${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}/latest`, {
+                    method: 'GET',
                     headers: {
-                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
+                        'X-Access-Key': JSONBIN_CONFIG.API_KEY
                     }
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Không thể tải data từ cloud');
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 const result = await response.json();
@@ -1386,13 +1388,13 @@
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
+                        'X-Access-Key': JSONBIN_CONFIG.API_KEY
                     },
                     body: JSON.stringify(moviesData)
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Không thể lưu data lên cloud');
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 showToast('✅ Đã lưu data lên cloud thành công!', 'success');
