@@ -1315,12 +1315,13 @@
                 const response = await fetch(`${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.INITIAL_BIN_ID}/latest`, {
                     method: 'GET',
                     headers: {
-                        'X-Access-Key': JSONBIN_CONFIG.API_KEY
+                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
                     }
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
                 
                 const result = await response.json();
@@ -1333,7 +1334,7 @@
                 showToast('✅ Đã tải data ban đầu thành công!', 'success');
                 console.log('✅ Imported initial data from cloud');
             } catch (error) {
-                showToast('❌ Lỗi: Không thể tải data từ cloud!', 'error');
+                showToast('❌ Lỗi: ' + error.message, 'error');
                 console.error('Cloud import error:', error);
             }
         }
@@ -1349,12 +1350,13 @@
                 const response = await fetch(`${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}/latest`, {
                     method: 'GET',
                     headers: {
-                        'X-Access-Key': JSONBIN_CONFIG.API_KEY
+                        'X-Master-Key': JSONBIN_CONFIG.API_KEY
                     }
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
                 
                 const result = await response.json();
@@ -1367,7 +1369,7 @@
                 showToast('✅ Đã tải data đã lưu thành công!', 'success');
                 console.log('✅ Loaded latest data from cloud');
             } catch (error) {
-                showToast('❌ Lỗi: Không thể tải data từ cloud!', 'error');
+                showToast('❌ Lỗi: ' + error.message, 'error');
                 console.error('Cloud load error:', error);
             }
         }
@@ -1388,19 +1390,24 @@
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Access-Key': JSONBIN_CONFIG.API_KEY
+                        'X-Master-Key': JSONBIN_CONFIG.API_KEY,
+                        'X-Bin-Versioning': 'false'
                     },
                     body: JSON.stringify(moviesData)
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
+                
+                const result = await response.json();
+                console.log('Save response:', result);
                 
                 showToast('✅ Đã lưu data lên cloud thành công!', 'success');
                 console.log('✅ Saved data to cloud');
             } catch (error) {
-                showToast('❌ Lỗi: Không thể lưu lên cloud!', 'error');
+                showToast('❌ Lỗi: ' + error.message, 'error');
                 console.error('Cloud save error:', error);
             }
         }
