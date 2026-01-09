@@ -1357,7 +1357,23 @@
                 }
                 
                 const result = await response.json();
-                moviesData = result.record;
+                const cloudData = result.record;
+                
+                // Restore posters từ localStorage nếu có
+                Object.keys(cloudData).forEach(cinema => {
+                    cloudData[cinema] = cloudData[cinema].map(movie => {
+                        // Nếu có poster cũ trong localStorage, giữ lại
+                        if (movie.poster === 'REMOVED' && moviesData[cinema]) {
+                            const oldMovie = moviesData[cinema].find(m => m.id === movie.id);
+                            if (oldMovie && oldMovie.poster) {
+                                movie.poster = oldMovie.poster;
+                            }
+                        }
+                        return movie;
+                    });
+                });
+                
+                moviesData = cloudData;
                 
                 saveToHistory();
                 saveToLocalStorage();
@@ -1383,6 +1399,15 @@
             showToast('☁️ Đang lưu lên cloud...', 'info');
             
             try {
+                // Tạo data nhỏ gọn hơn - bỏ poster để giảm kích thước
+                const compactData = {};
+                Object.keys(moviesData).forEach(cinema => {
+                    compactData[cinema] = moviesData[cinema].map(movie => ({
+                        ...movie,
+                        poster: movie.poster ? 'REMOVED' : '' // Đánh dấu có poster nhưng không lưu
+                    }));
+                });
+                
                 const url = `${JSONBIN_CONFIG.BASE_URL}/${JSONBIN_CONFIG.LATEST_BIN_ID}`;
                 const response = await fetchThroughProxy(url, {
                     method: 'PUT',
@@ -1390,7 +1415,7 @@
                         'Content-Type': 'application/json',
                         'X-Master-Key': JSONBIN_CONFIG.API_KEY
                     },
-                    body: JSON.stringify(moviesData)
+                    body: JSON.stringify(compactData)
                 });
                 
                 if (!response.ok) {
@@ -1398,7 +1423,7 @@
                 }
                 
                 showToast('✅ Đã lưu data lên cloud thành công!', 'success');
-                console.log('✅ Saved data to cloud');
+                console.log('✅ Saved data to cloud (without posters)');
             } catch (error) {
                 showToast('❌ Lỗi: ' + error.message, 'error');
                 console.error('Cloud save error:', error);
