@@ -1,77 +1,2657 @@
-// Cloudflare Worker - CORS Proxy for JSONbin
-// Deploy này lên Cloudflare Workers (FREE)
-
-addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request))
-})
-
-async function handleRequest(request) {
-  // Handle CORS preflight
-  if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Master-Key, X-Bin-Versioning',
-        'Access-Control-Max-Age': '86400',
-      }
-    })
-  }
-
-  try {
-    const url = new URL(request.url)
-    const targetUrl = url.searchParams.get('url')
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Công cụ tạo lịch chiếu phim Galaxy Cinema - Tạo, chỉnh sửa và xuất lịch chiếu phim chuyên nghiệp">
+    <meta name="keywords" content="Galaxy Cinema, lịch chiếu phim, quản lý rạp chiếu phim">
+    <meta name="author" content="Galaxy Cinema Tool">
+    <title>Galaxy Cinema - Công cụ tạo lịch chiếu</title>
     
-    if (!targetUrl) {
-      return new Response('Missing url parameter', { status: 400 })
-    }
-
-    // Copy headers from original request
-    const headers = new Headers()
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     
-    // Forward important headers
-    const headersToForward = ['Content-Type', 'X-Master-Key', 'X-Bin-Versioning']
-    headersToForward.forEach(header => {
-      const value = request.headers.get(header)
-      if (value) {
-        headers.set(header, value)
-      }
-    })
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+            min-height: 140px;
+        }
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .header-tools {
+            position: absolute;
+            bottom: 20px;
+            right: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .search-box {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            width: 200px;
+        }
+        .search-box:focus {
+            outline: 2px solid white;
+        }
+        .header-movie-count {
+            background: white;
+            color: #1f2937;
+            font-weight: 600;
+            font-size: 14px;
+            white-space: nowrap;
+            padding: 10px 16px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .menu-wrapper {
+            position: relative;
+        }
+        .menu-btn {
+            background: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .menu-btn:hover {
+            background: #e5e7eb;
+            transform: translateY(-2px);
+        }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 45px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            min-width: 180px;
+            z-index: 9999;
+        }
+        .dropdown-menu.show {
+            display: block;
+        }
+        .dropdown-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            color: #1f2937;
+            font-size: 14px;
+            border-bottom: 1px solid #e5e7eb;
+            transition: background 0.2s;
+        }
+        .dropdown-item:hover {
+            background: #f3f4f6;
+        }
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease-out;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .toast.success {
+            background: #10b981;
+        }
+        .toast.error {
+            background: #ef4444;
+        }
+        .main-content {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 0;
+        }
+        .left-panel {
+            background: #f8f9fa;
+            padding: 25px;
+            border-right: 2px solid #dee2e6;
+            overflow-y: auto;
+            max-height: calc(100vh - 200px);
+        }
+        .right-panel {
+            padding: 25px;
+            overflow-y: auto;
+            max-height: calc(100vh - 200px);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .calendar-icon {
+            cursor: pointer;
+            font-size: 18px;
+            margin-left: 8px;
+            transition: transform 0.2s;
+            display: inline-block;
+        }
+        .calendar-icon:hover {
+            transform: scale(1.2);
+        }
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .custom-date-picker {
+            display: flex;
+            gap: 8px;
+        }
+        .date-labels {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .date-labels span:nth-child(1) {
+            flex: 0 0 70px;
+            text-align: center;
+        }
+        .date-labels span:nth-child(2) {
+            flex: 1;
+            text-align: center;
+        }
+        .date-labels span:nth-child(3) {
+            flex: 0 0 85px;
+            text-align: center;
+        }
+        .custom-date-picker select {
+            padding: 8px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .custom-date-picker select:nth-child(1) {
+            flex: 0 0 70px;
+        }
+        .custom-date-picker select:nth-child(2) {
+            flex: 1;
+        }
+        .custom-date-picker select:nth-child(3) {
+            flex: 0 0 85px;
+        }
+        .custom-date-picker select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .time-picker {
+            display: flex;
+            gap: 10px;
+            align-items: end;
+        }
+        .time-picker select {
+            flex: 1;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #059669;
+        }
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        .btn-block {
+            width: 100%;
+        }
+        .btn-info {
+            background: #8b5cf6;
+            color: white;
+        }
+        .btn-info:hover {
+            background: #7c3aed;
+        }
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+        .btn-warning:hover {
+            background: #d97706;
+        }
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        .showtimes-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .showtime-tag {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 6px 12px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+        .movies-list {
+            display: grid;
+            gap: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
+        .movies-list.cinema-vinh {
+            background: #1e3c8a;
+            border: 2px solid #1e40af;
+        }
+        .movies-list.cinema-vincom {
+            background: #c96b2a;
+            border: 2px solid #ea580c;
+        }
+        .movie-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            user-select: none;
+        }
+        .movie-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+        }
+        .movie-card.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+        .movie-card.highlight {
+            border-color: #ea580c;
+            background: #fed7aa;
+            box-shadow: 0 4px 12px rgba(234, 88, 12, 0.5);
+        }
+        .movie-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+        .order-input {
+            width: 45px;
+            padding: 4px 8px;
+            border: 2px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+            color: #1f2937;
+            transition: all 0.2s;
+        }
+        .order-input:hover {
+            border-color: #3b82f6;
+        }
+        .order-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        /* Hide spinner arrows */
+        .order-input::-webkit-inner-spin-button,
+        .order-input::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .order-input[type=number] {
+            -moz-appearance: textfield;
+        }
+        .movie-card h3 {
+            color: #1f2937;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .movie-info {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #6b7280;
+        }
+        .age-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .age-P { background: #10b981; color: white; }
+        .age-K { background: #f59e0b; color: white; }
+        .age-T13 { background: #ef4444; color: white; }
+        .age-T16 { background: #dc2626; color: white; }
+        .age-T18 { background: #991b1b; color: white; }
+        .preview-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f3f4f6;
+            border-radius: 8px;
+        }
+        .preview-section h2 {
+            margin-bottom: 20px;
+            color: #1f2937;
+        }
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        #scheduleCanvas {
+            max-width: 100%;
+            max-height: 500px;
+            border: 2px solid #d1d5db;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            object-fit: contain;
+        }
+        #scheduleCanvas:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+        }
+        .poster-preview {
+            width: 100px;
+            height: 140px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-top: 10px;
+            border: 2px solid #e5e7eb;
+        }
+        .format-section {
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 10px;
+            background: white;
+        }
+        .format-section h4 {
+            margin-bottom: 10px;
+            color: #1f2937;
+        }
+        .import-export-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .import-export-section .btn {
+            flex: 1;
+        }
+        .footer {
+            text-align: center;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            color: #6b7280;
+            font-size: 11px;
+            border-top: 1px solid #dee2e6;
+            line-height: 1.6;
+        }
+        .footer-shortcuts {
+            margin-bottom: 8px;
+            padding: 6px 10px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 10px;
+        }
+        .footer-shortcuts strong {
+            color: #1f2937;
+        }
+        input[type="file"].hidden-input {
+            display: none;
+        }
+        .save-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #10b981;
+            color: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+            display: none;
+            align-items: center;
+            gap: 12px;
+            z-index: 1000;
+            font-size: 18px;
+            font-weight: 600;
+            animation: scaleIn 0.3s ease;
+        }
+        .save-notification.show {
+            display: flex;
+        }
+        @keyframes scaleIn {
+            from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        @keyframes scaleOut {
+            from { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            to { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+        }
+        .save-notification.hiding {
+            animation: scaleOut 0.3s ease;
+        }
+        /* Search box styles - REMOVED, now in header */
 
-    // Get body if exists
-    let body = null
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
-      body = await request.text()
-    }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Image preview modal */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 3000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            overflow: auto;
+        }
+        .image-modal.show {
+            display: block;
+        }
+        .image-modal-content {
+            margin: 2% auto;
+            display: block;
+            max-width: 98%;
+            max-height: 96vh;
+            cursor: zoom-in;
+        }
+        .image-modal-content.zoomed {
+            max-width: none;
+            max-height: none;
+            width: auto;
+            cursor: zoom-out;
+        }
+        .image-modal-close {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 3001;
+            transition: 0.3s;
+        }
+        .image-modal-close:hover,
+        .image-modal-close:focus {
+            color: #bbb;
+        }
+        .zoom-hint {
+            text-align: center;
+            color: #6b7280;
+            font-size: 12px;
+            margin-top: 8px;
+            font-style: italic;
+        }
+        
+        /* Custom confirm dialog */
+        .custom-confirm {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            min-width: 280px;
+        }
+        .custom-confirm.show {
+            display: block;
+        }
+        .custom-confirm-message {
+            margin-bottom: 15px;
+            color: #1f2937;
+            font-size: 14px;
+        }
+        .custom-confirm-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .custom-confirm-buttons .btn {
+            padding: 6px 16px;
+            font-size: 13px;
+        }
+        
+        /* Responsive cho laptop - màn hình nhỏ hơn */
+        @media screen and (max-width: 1600px) {
+            .container {
+                max-width: 100%;
+                margin: 0;
+                border-radius: 0;
+            }
+            body {
+                padding: 0;
+            }
+            .header {
+                padding: 20px 30px;
+            }
+            .header h1 {
+                font-size: 26px;
+                margin-bottom: 5px;
+            }
+            .header p {
+                font-size: 13px;
+            }
+            .header-search {
+                width: 250px;
+                bottom: 12px;
+                right: 20px;
+            }
+            .header-search input {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+            .main-content {
+                grid-template-columns: 320px 1fr;
+                max-height: calc(100vh - 120px);
+            }
+            .left-panel, .right-panel {
+                max-height: calc(100vh - 120px);
+                padding: 15px;
+            }
+            .form-group {
+                margin-bottom: 12px;
+            }
+            .form-group label {
+                font-size: 13px;
+                margin-bottom: 5px;
+            }
+            .form-group input,
+            .form-group select {
+                padding: 7px;
+                font-size: 13px;
+            }
+            .btn {
+                padding: 7px 12px;
+                font-size: 12px;
+            }
+            .format-section {
+                padding: 10px;
+                margin-top: 8px;
+            }
+            .format-section h4 {
+                font-size: 13px;
+                margin-bottom: 8px;
+            }
+            .poster-preview {
+                width: 70px;
+                height: 100px;
+            }
+            .movie-card {
+                padding: 10px;
+                border-radius: 6px;
+            }
+            .movie-card h3 {
+                font-size: 14px;
+            }
+            .movie-info {
+                font-size: 12px;
+                gap: 6px;
+                margin-top: 6px;
+            }
+            .age-badge {
+                padding: 3px 7px;
+                font-size: 10px;
+            }
+            .showtime-tag {
+                padding: 4px 8px;
+                font-size: 11px;
+                gap: 5px;
+            }
+            .btn-danger {
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+            .preview-section {
+                margin-top: 20px;
+                padding: 15px;
+            }
+            .preview-section h2 {
+                font-size: 18px;
+                margin-bottom: 15px;
+            }
+            .right-panel h2 {
+                font-size: 18px;
+                margin-bottom: 12px;
+            }
+            .import-export-section {
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="save-notification" id="saveNotification">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>Đã lưu phim thành công!</span>
+    </div>
 
-    // Forward request to JSONbin
-    const response = await fetch(targetUrl, {
-      method: request.method,
-      headers: headers,
-      body: body
-    })
+    <!-- Image Preview Modal -->
+    <div class="image-modal" id="imageModal" onclick="closeImageModal()">
+        <span class="image-modal-close" onclick="closeImageModal()">&times;</span>
+        <img class="image-modal-content" id="modalImage" onclick="toggleImageZoom(event)">
+    </div>
+    
+    <!-- Custom Confirm Dialog -->
+    <div class="custom-confirm" id="customConfirm">
+        <div class="custom-confirm-message" id="confirmMessage"></div>
+        <div class="custom-confirm-buttons">
+            <button class="btn btn-secondary" onclick="closeCustomConfirm()">Hủy</button>
+            <button class="btn btn-danger" onclick="confirmCustom()">Xác nhận</button>
+        </div>
+    </div>
 
-    // Get response body
-    const responseBody = await response.text()
+    <div class="container">
+        <div class="header">
+            <h1>🎬 GALAXY CINEMA</h1>
+            <p>Công cụ tạo lịch chiếu phim</p>
+            <div class="header-tools">
+                <input type="text" id="searchBox" class="search-box" placeholder="🔍 Tìm kiếm phim..." onkeyup="searchMovie()">
+                <span class="header-movie-count" id="headerMovieCount">0 phim</span>
+                <div class="menu-wrapper">
+                    <button class="menu-btn" onclick="toggleDataMenu()">☰ Menu</button>
+                    <div class="dropdown-menu" id="dataMenuDropdown">
+                        <div class="dropdown-item" onclick="importInitialDataFromCloud()">☁️ Import data ban đầu</div>
+                        <div class="dropdown-item" onclick="loadLatestFromCloud()">📥 Tải data đã lưu</div>
+                        <div class="dropdown-item" onclick="saveDataToCloud()">💾 Lưu data ngày này</div>
+                        <div style="border-top: 1px solid #e5e7eb; margin: 4px 0;"></div>
+                        <div class="dropdown-item" onclick="importData()">📥 Import JSON từ máy</div>
+                        <div class="dropdown-item" onclick="exportData()">📤 Export JSON</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="left-panel">
+                <input type="file" id="importInput" class="hidden-input" accept=".json" onchange="handleImport(event)">
 
-    // Create new response with CORS headers
-    return new Response(responseBody, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Master-Key, X-Bin-Versioning',
-        'Content-Type': response.headers.get('Content-Type') || 'application/json'
-      }
-    })
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      }
-    })
-  }
-}
+                <div class="form-group">
+                    <label>Chọn rạp:</label>
+                    <select id="cinemaSelect">
+                        <option value="GALAXY VINH">GALAXY VINH</option>
+                        <option value="GALAXY CINE+ VINCOM PLAZA VINH">GALAXY CINE+ VINCOM PLAZA VINH</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Ngày hiển thị: 
+                        <span class="calendar-icon" onclick="document.getElementById('hiddenDateInput').showPicker()" title="Chọn từ lịch">📅</span>
+                    </label>
+                    <input type="date" id="hiddenDateInput" style="position: absolute; opacity: 0; pointer-events: none;">
+                    <div class="date-labels">
+                        <span>Ngày</span>
+                        <span>Tháng</span>
+                        <span>Năm</span>
+                    </div>
+                    <div class="custom-date-picker">
+                        <select id="dateDay"></select>
+                        <select id="dateMonth">
+                            <option value="01">Tháng 1</option>
+                            <option value="02">Tháng 2</option>
+                            <option value="03">Tháng 3</option>
+                            <option value="04">Tháng 4</option>
+                            <option value="05">Tháng 5</option>
+                            <option value="06">Tháng 6</option>
+                            <option value="07">Tháng 7</option>
+                            <option value="08">Tháng 8</option>
+                            <option value="09">Tháng 9</option>
+                            <option value="10">Tháng 10</option>
+                            <option value="11">Tháng 11</option>
+                            <option value="12">Tháng 12</option>
+                        </select>
+                        <select id="dateYear"></select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Tải lên ảnh poster:</label>
+                    <input type="file" id="posterInput" accept="image/*">
+                    <img id="posterPreview" class="poster-preview" style="display:none;">
+                </div>
+
+                <div class="form-group">
+                    <label>Tên phim:</label>
+                    <input type="text" id="movieTitle" placeholder="Nhập tên phim...">
+                </div>
+
+                <div class="form-group">
+                    <label>Định dạng:</label>
+                    <select id="movieFormat">
+                        <option value="">Không hiển thị</option>
+                        <option value="2D/3D">2D / 3D</option>
+                        <option value="2D/Cine de Kids 2D">2D / Cine de Kids 2D</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Ngôn ngữ:</label>
+                    <select id="movieLanguage">
+                        <option value="">Không hiển thị</option>
+                        <option value="Lồng Tiếng">Lồng Tiếng</option>
+                        <option value="Phụ đề">Phụ đề</option>
+                        <option value="Phụ đề/Lồng Tiếng">Phụ đề / Lồng Tiếng</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Suất chiếu:</label>
+                    <label style="display: inline-flex; align-items: center; gap: 5px; padding: 8px 12px; background: white; border: 2px solid #dee2e6; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" id="sneakShow" style="cursor: pointer;"> SneakShow
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>Độ tuổi:</label>
+                    <select id="ageRating">
+                        <option value="P">P - Mọi lứa tuổi</option>
+                        <option value="K">K - Dưới 13 tuổi với phụ huynh</option>
+                        <option value="T13">T13 - Từ 13 tuổi</option>
+                        <option value="T16">T16 - Từ 16 tuổi</option>
+                        <option value="T18">T18 - Từ 18 tuổi</option>
+                    </select>
+                </div>
+
+                <!-- Nút reset tất cả giờ chiếu -->
+                <div style="margin: 15px 0;">
+                    <button class="btn btn-warning btn-block" onclick="showResetAllConfirm(this)" style="font-size: 15px;">
+                        🔄 Reset tất cả giờ chiếu
+                    </button>
+                </div>
+
+                <div id="showtimeSections">
+                    <!-- Sections will be generated dynamically based on format + language -->
+                </div>
+
+                <button class="btn btn-success btn-block" onclick="saveMovie()">💾 Lưu phim</button>
+
+                <div class="import-export-section" style="margin-top: 20px;">
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <h2>Danh sách phim đã lưu</h2>
+                <div class="movies-list" id="moviesList"></div>
+
+                <div class="preview-section">
+                    <h2>Preview lịch chiếu</h2>
+                    <div class="canvas-container">
+                        <canvas id="scheduleCanvas" onclick="openImageModal()"></canvas>
+                    </div>
+                    <p class="zoom-hint">💡 Bấm vào ảnh để phóng to. Click vào ảnh phóng to để zoom 100% (ESC để đóng)</p>
+                    <button class="btn btn-success btn-block" style="margin-top: 15px;" onclick="downloadSchedule()">📥 Tải xuống ảnh PNG</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="footer-shortcuts">
+                <strong>⌨️ Phím tắt:</strong> 
+                <strong>Ctrl+S</strong> - Tải PNG | 
+                <strong>Ctrl+Z</strong> - Hoàn tác | 
+                <strong>Ctrl+Y</strong> - Làm lại | 
+                <strong>Ctrl+F</strong> - Tìm kiếm
+            </div>
+            <div>Developed by Trọng Hiếu</div>
+        </div>
+    </div>
+
+    <script>
+        const CINEMA_CONFIG = {
+            'GALAXY VINH': {
+                name: 'GALAXY VINH',
+                backgroundColor: '#1e3c8a',
+                url: 'https://www.galaxycine.vn/rap-gia-ve/galaxy-vinh/'
+            },
+            'GALAXY CINE+ VINCOM PLAZA VINH': {
+                name: 'GALAXY CINE+ VINCOM PLAZA VINH',
+                backgroundColor: '#c96b2a',
+                url: 'https://www.galaxycine.vn/rap-gia-ve/galaxy-cine-vincom-plaza-vinh/'
+            }
+        };
+
+        let currentCinema = 'GALAXY VINH';
+        let currentShowtimes = {};
+        let currentPosterData = null;
+        let moviesData = {};
+        let editingMovieId = null;
+        let selectedDate = '';
+        
+        // Undo/Redo history
+        let history = [];
+        let historyIndex = -1;
+        const MAX_HISTORY = 50;
+
+        // Initialize custom date picker
+        function initDatePicker() {
+            const daySelect = document.getElementById('dateDay');
+            const monthSelect = document.getElementById('dateMonth');
+            const yearSelect = document.getElementById('dateYear');
+            
+            // Populate days (1-31)
+            for (let i = 1; i <= 31; i++) {
+                const option = document.createElement('option');
+                option.value = String(i).padStart(2, '0');
+                option.textContent = i;
+                daySelect.appendChild(option);
+            }
+            
+            // Populate years (2020-2030)
+            const currentYear = new Date().getFullYear();
+            for (let i = currentYear - 2; i <= currentYear + 5; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                yearSelect.appendChild(option);
+            }
+            
+            // Set today's date
+            const today = new Date();
+            const day = String(today.getDate()).padStart(2, '0');
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const year = today.getFullYear();
+            
+            daySelect.value = day;
+            monthSelect.value = month;
+            yearSelect.value = year;
+            
+            updateSelectedDate();
+            
+            // Add change listeners
+            daySelect.addEventListener('change', updateSelectedDate);
+            monthSelect.addEventListener('change', updateSelectedDate);
+            yearSelect.addEventListener('change', updateSelectedDate);
+        }
+        
+        function updateSelectedDate() {
+            const day = document.getElementById('dateDay').value;
+            const month = document.getElementById('dateMonth').value;
+            const year = document.getElementById('dateYear').value;
+            
+            selectedDate = `${year}-${month}-${day}`;
+            
+            // Sync với hidden date input
+            document.getElementById('hiddenDateInput').value = selectedDate;
+            
+            generatePreview(moviesData[currentCinema] || []);
+        }
+        
+        initDatePicker();
+
+        // Sync hidden date input with custom picker
+        document.getElementById('hiddenDateInput').addEventListener('change', function() {
+            const dateValue = this.value; // yyyy-mm-dd
+            if (dateValue) {
+                const [year, month, day] = dateValue.split('-');
+                document.getElementById('dateDay').value = day;
+                document.getElementById('dateMonth').value = month;
+                document.getElementById('dateYear').value = year;
+                updateSelectedDate();
+            }
+        });
+
+        const today = new Date();
+        const dateStr = today.toISOString().split('T')[0];
+        selectedDate = dateStr;
+        document.getElementById('hiddenDateInput').value = dateStr;
+
+        // Image modal functions
+        let currentResetFormat = null;
+        
+        function showResetConfirm(button, format) {
+            const rect = button.getBoundingClientRect();
+            const dialog = document.getElementById('customConfirm');
+            const message = document.getElementById('confirmMessage');
+            
+            currentResetFormat = format;
+            message.textContent = `Bạn có chắc muốn xóa tất cả giờ chiếu ${format}?`;
+            
+            dialog.style.left = rect.left + 'px';
+            dialog.style.top = (rect.top - 80) + 'px';
+            dialog.classList.add('show');
+        }
+        
+        function closeCustomConfirm() {
+            document.getElementById('customConfirm').classList.remove('show');
+            currentResetFormat = null;
+        }
+        
+        function confirmCustom() {
+            if (currentResetFormat) {
+                if (currentResetFormat === 'ALL') {
+                    // Reset tất cả
+                    Object.keys(currentShowtimes).forEach(format => {
+                        currentShowtimes[format] = [];
+                    });
+                    updateShowtimeSections();
+                    console.log('✅ Đã reset tất cả giờ chiếu');
+                } else {
+                    // Reset 1 format
+                    currentShowtimes[currentResetFormat] = [];
+                    renderShowtimes(currentResetFormat);
+                }
+            }
+            closeCustomConfirm();
+        }
+        
+        function showResetAllConfirm(button) {
+            const rect = button.getBoundingClientRect();
+            const dialog = document.getElementById('customConfirm');
+            const message = document.getElementById('confirmMessage');
+            
+            currentResetFormat = 'ALL';
+            message.textContent = `Bạn có chắc muốn xóa TẤT CẢ giờ chiếu?`;
+            
+            dialog.style.left = rect.left + 'px';
+            dialog.style.top = (rect.bottom + 10) + 'px'; // Hiện ngay dưới nút
+            dialog.classList.add('show');
+        }
+        
+        function openImageModal() {
+            const canvas = document.getElementById('scheduleCanvas');
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+            
+            modalImg.src = canvas.toDataURL('image/png');
+            modalImg.classList.remove('zoomed');
+            modal.classList.add('show');
+        }
+
+        function closeImageModal() {
+            document.getElementById('imageModal').classList.remove('show');
+        }
+        
+        function toggleImageZoom(event) {
+            event.stopPropagation();
+            const img = document.getElementById('modalImage');
+            img.classList.toggle('zoomed');
+        }
+
+        // ESC key to close modal and custom confirm
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeImageModal();
+                closeCustomConfirm();
+            }
+            
+            // Ctrl+S - Download
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                downloadSchedule();
+            }
+            
+            // Ctrl+Z - Undo
+            if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                undo();
+            }
+            
+            // Ctrl+Y - Redo
+            if (e.ctrlKey && e.key === 'y') {
+                e.preventDefault();
+                redo();
+            }
+            
+            // Ctrl+F - Focus search
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                document.getElementById('searchBox').focus();
+            }
+        });
+
+        // Dynamic showtime sections based on format + language
+        function updateShowtimeSections() {
+            const format = document.getElementById('movieFormat').value;
+            const language = document.getElementById('movieLanguage').value;
+            const container = document.getElementById('showtimeSections');
+            container.innerHTML = '';
+            
+            // Backup current showtimes before clearing
+            const oldShowtimes = JSON.parse(JSON.stringify(currentShowtimes));
+            
+            const sections = [];
+            
+            // Determine which sections to show
+            if (format === '' || format === null) {
+                sections.push('2D');
+            } else if (format === '2D/3D') {
+                sections.push('2D', '3D');
+            } else if (format === '2D/Cine de Kids 2D') {
+                sections.push('2D', 'Cine de Kids 2D');
+            }
+            
+            // If language is selected, split each section
+            const finalSections = [];
+            if (language === 'Phụ đề/Lồng Tiếng') {
+                sections.forEach(s => {
+                    finalSections.push(s + ' Phụ đề');
+                    finalSections.push(s + ' Lồng Tiếng');
+                });
+            } else if (language === 'Phụ đề') {
+                sections.forEach(s => finalSections.push(s + ' Phụ đề'));
+            } else if (language === 'Lồng Tiếng') {
+                sections.forEach(s => finalSections.push(s + ' Lồng Tiếng'));
+            } else {
+                finalSections.push(...sections);
+            }
+            
+            // Create sections
+            finalSections.forEach(sectionName => {
+                const sectionId = sectionName.replace(/\s+/g, '');
+                
+                // Try to find data from old keys
+                if (!currentShowtimes[sectionName]) {
+                    currentShowtimes[sectionName] = [];
+                }
+                
+                // Migrate data: if new section is "2D Lồng Tiếng" but old data has "2D", copy it
+                if (oldShowtimes[sectionName] && oldShowtimes[sectionName].length > 0) {
+                    // Exact match - keep it
+                    currentShowtimes[sectionName] = [...oldShowtimes[sectionName]];
+                } else {
+                    // Try to find base format match
+                    // Example: "2D Lồng Tiếng" should try "2D", "2D Phụ đề", etc
+                    const baseFormat = sectionName.replace(' Phụ đề', '').replace(' Lồng Tiếng', '');
+                    
+                    // Check if old data has this base format
+                    if (oldShowtimes[baseFormat] && oldShowtimes[baseFormat].length > 0) {
+                        currentShowtimes[sectionName] = [...oldShowtimes[baseFormat]];
+                    }
+                }
+                
+                const section = document.createElement('div');
+                section.className = 'format-section';
+                section.innerHTML = `
+                    <h4>Giờ chiếu ${sectionName}:</h4>
+                    <div class="form-group">
+                        <div class="time-picker">
+                            <select id="hourSelect${sectionId}"></select>
+                            <select id="minuteSelect${sectionId}">
+                                <option value="00">00</option>
+                                <option value="15">15</option>
+                                <option value="30">30</option>
+                                <option value="45">45</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="addShowtime('${sectionName}')">Thêm</button>
+                        </div>
+                        <div class="showtimes-list" id="showtimesList${sectionId}"></div>
+                    </div>
+                `;
+                container.appendChild(section);
+                
+                // Populate hour select
+                const hourSelect = document.getElementById(`hourSelect${sectionId}`);
+                for (let i = 7; i <= 23; i++) {
+                    const option = document.createElement('option');
+                    option.value = i.toString().padStart(2, '0');
+                    option.textContent = i.toString().padStart(2, '0');
+                    hourSelect.appendChild(option);
+                }
+                
+                // Render existing showtimes
+                renderShowtimes(sectionName);
+            });
+        }
+        
+        document.getElementById('movieFormat').addEventListener('change', updateShowtimeSections);
+        document.getElementById('movieLanguage').addEventListener('change', updateShowtimeSections);
+        
+        // Initialize on page load
+        updateShowtimeSections();
+
+        // History management
+        function saveToHistory() {
+            const state = JSON.parse(JSON.stringify(moviesData));
+            
+            // Remove future history if we're not at the end
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
+            
+            history.push(state);
+            
+            // Limit history size
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+            } else {
+                historyIndex++;
+            }
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                moviesData = JSON.parse(JSON.stringify(history[historyIndex]));
+                saveToLocalStorage();
+                loadData();
+            }
+        }
+
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                moviesData = JSON.parse(JSON.stringify(history[historyIndex]));
+                saveToLocalStorage();
+                loadData();
+            }
+        }
+
+        function searchMovie() {
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase().trim();
+            const movieCards = document.querySelectorAll('.movie-card');
+            
+            movieCards.forEach(card => {
+                card.classList.remove('highlight');
+            });
+            
+            if (searchTerm === '') {
+                return;
+            }
+            
+            const movies = moviesData[currentCinema] || [];
+            let foundIndex = -1;
+            
+            for (let i = 0; i < movies.length; i++) {
+                if (movies[i].title.toLowerCase().includes(searchTerm)) {
+                    foundIndex = i;
+                    break;
+                }
+            }
+            
+            if (foundIndex !== -1 && movieCards[foundIndex]) {
+                movieCards[foundIndex].classList.add('highlight');
+                movieCards[foundIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function importData() {
+            const dropdown = document.getElementById('dataMenuDropdown');
+            if (dropdown) dropdown.classList.remove('show');
+            document.getElementById('importInput').click();
+        }
+
+        function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    moviesData = imported;
+                    saveToHistory();
+                    saveToLocalStorage();
+                    loadData();
+                    showToast('✅ Đã nạp dữ liệu thành công!', 'success');
+                } catch (error) {
+                    showToast('❌ Lỗi: File JSON không hợp lệ!', 'error');
+                    console.error(error);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // ==================== FIREBASE CLOUD STORAGE ====================
+        
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCIThlf3qnCWGypqVLF6MtDtOLDtE7R4kw",
+            authDomain: "galaxy-cinema-tool.firebaseapp.com",
+            databaseURL: "https://galaxy-cinema-tool-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "galaxy-cinema-tool",
+            storageBucket: "galaxy-cinema-tool.firebasestorage.app",
+            messagingSenderId: "126880410412",
+            appId: "1:126880410412:web:89ad2d9c80ee9ca4bb5a89"
+        };
+        
+        // Initialize Firebase after page load
+        let database;
+        
+        // Wait for Firebase SDK to load
+        function initFirebase() {
+            if (typeof firebase !== 'undefined') {
+                firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
+                console.log('✅ Firebase initialized');
+            } else {
+                console.error('❌ Firebase SDK not loaded');
+                setTimeout(initFirebase, 100);
+            }
+        }
+        
+        // Initialize on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFirebase);
+        } else {
+            initFirebase();
+        }
+        
+        // Import data ban đầu từ cloud
+        async function importInitialDataFromCloud() {
+            const dropdown = document.getElementById('dataMenuDropdown');
+            if (dropdown) dropdown.classList.remove('show');
+            
+            if (!database) {
+                showToast('❌ Firebase chưa sẵn sàng!', 'error');
+                return;
+            }
+            
+            showToast('☁️ Đang tải data ban đầu...', 'info');
+            
+            try {
+                const snapshot = await database.ref('initial-template').once('value');
+                const data = snapshot.val();
+                
+                if (!data) {
+                    showToast('❌ Chưa có data ban đầu!', 'error');
+                    return;
+                }
+                
+                moviesData = data;
+                saveToHistory();
+                saveToLocalStorage();
+                loadData();
+                
+                showToast('✅ Đã tải data ban đầu thành công!', 'success');
+                console.log('✅ Imported initial data from Firebase');
+            } catch (error) {
+                showToast('❌ Lỗi: ' + error.message, 'error');
+                console.error('Firebase import error:', error);
+            }
+        }
+        
+        // Tải data đã lưu (ngày trước) từ cloud
+        async function loadLatestFromCloud() {
+            const dropdown = document.getElementById('dataMenuDropdown');
+            if (dropdown) dropdown.classList.remove('show');
+            
+            if (!database) {
+                showToast('❌ Firebase chưa sẵn sàng!', 'error');
+                return;
+            }
+            
+            showToast('☁️ Đang tải data đã lưu...', 'info');
+            
+            try {
+                const snapshot = await database.ref('latest-data').once('value');
+                const data = snapshot.val();
+                
+                if (!data) {
+                    showToast('❌ Chưa có data đã lưu!', 'error');
+                    return;
+                }
+                
+                moviesData = data;
+                saveToHistory();
+                saveToLocalStorage();
+                loadData();
+                
+                showToast('✅ Đã tải data đã lưu thành công!', 'success');
+                console.log('✅ Loaded latest data from Firebase');
+            } catch (error) {
+                showToast('❌ Lỗi: ' + error.message, 'error');
+                console.error('Firebase load error:', error);
+            }
+        }
+        
+        // Lưu data ngày này lên cloud
+        async function saveDataToCloud() {
+            const dropdown = document.getElementById('dataMenuDropdown');
+            if (dropdown) dropdown.classList.remove('show');
+            
+            if (!database) {
+                showToast('❌ Firebase chưa sẵn sàng!', 'error');
+                return;
+            }
+            
+            if (!confirm('Lưu data ngày này lên cloud?\n\n⚠️ Sẽ ghi đè data cũ và cả team sẽ thấy data mới này.')) {
+                return;
+            }
+            
+            showToast('☁️ Đang lưu lên cloud...', 'info');
+            
+            try {
+                await database.ref('latest-data').set(moviesData);
+                
+                showToast('✅ Đã lưu data lên cloud thành công!', 'success');
+                console.log('✅ Saved data to Firebase');
+            } catch (error) {
+                showToast('❌ Lỗi: ' + error.message, 'error');
+                console.error('Firebase save error:', error);
+            }
+        }
+
+        async function exportData() {
+            const dropdown = document.getElementById('dataMenuDropdown');
+            if (dropdown) dropdown.classList.remove('show');
+            
+            const dataStr = JSON.stringify(moviesData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            
+            // Format: data dd-mm-yyyy TenRap.json
+            const today = new Date();
+            const day = String(today.getDate()).padStart(2, '0');
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const year = today.getFullYear();
+            const dateStr = `${day}-${month}-${year}`;
+            const cinemaName = currentCinema.replace(/GALAXY |CINE\+ /g, '').trim();
+            const fileName = `data ${dateStr} ${cinemaName}.json`;
+            
+            // Try File System Access API for folder selection
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const options = {
+                        suggestedName: fileName,
+                        types: [{
+                            description: 'JSON Files',
+                            accept: {'application/json': ['.json']}
+                        }]
+                    };
+                    
+                    // Use saved JSON folder if available
+                    if (lastJSONFolderHandle) {
+                        try {
+                            const permission = await lastJSONFolderHandle.queryPermission({ mode: 'readwrite' });
+                            if (permission === 'granted') {
+                                options.startIn = lastJSONFolderHandle;
+                                console.log('📂 Sử dụng JSON folder đã lưu');
+                            }
+                        } catch (e) {
+                            console.log('⚠️ Không thể dùng JSON folder cũ:', e);
+                        }
+                    }
+                    
+                    const handle = await window.showSaveFilePicker(options);
+                    
+                    // Save parent folder for next time
+                    try {
+                        const parent = await handle.getParent();
+                        lastJSONFolderHandle = parent;
+                        await saveFolderHandle('jsonFolder', parent);
+                        console.log('✅ Đã lưu JSON folder');
+                    } catch (e) {
+                        console.log('⚠️ Không thể lưu JSON folder:', e);
+                    }
+                    
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    
+                    showToast('✅ Đã xuất dữ liệu thành công!', 'success');
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('Export failed:', err);
+                        showToast('❌ Xuất dữ liệu thất bại!', 'error');
+                    }
+                }
+            } else {
+                // Fallback to traditional download
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = url;
+                link.click();
+                URL.revokeObjectURL(url);
+                showToast('✅ Đã xuất dữ liệu thành công!', 'success');
+            }
+        }
+
+        function saveToLocalStorage() {
+            // Do nothing - only save on download
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('galaxyCinema_completeState');
+                
+                if (!saved) {
+                    console.log('No saved data - initializing empty');
+                    moviesData = {'GALAXY VINH': [], 'GALAXY CINE+ VINCOM PLAZA VINH': []};
+                    history = [JSON.parse(JSON.stringify(moviesData))];
+                    historyIndex = 0;
+                    return;
+                }
+                
+                const completeState = JSON.parse(saved);
+                
+                // Restore selectedDate FIRST
+                selectedDate = completeState.selectedDate;
+                
+                // Restore moviesData SECOND
+                moviesData = completeState.moviesData;
+                
+                // Ensure both cinemas exist
+                if (!moviesData['GALAXY VINH']) moviesData['GALAXY VINH'] = [];
+                if (!moviesData['GALAXY CINE+ VINCOM PLAZA VINH']) moviesData['GALAXY CINE+ VINCOM PLAZA VINH'] = [];
+                
+                console.log('✅ Loaded complete state:', completeState);
+                
+                // Update UI dropdowns
+                const [year, month, day] = selectedDate.split('-');
+                const daySelect = document.getElementById('dateDay');
+                const monthSelect = document.getElementById('dateMonth');
+                const yearSelect = document.getElementById('dateYear');
+                const hiddenInput = document.getElementById('hiddenDateInput');
+                
+                if (daySelect) daySelect.value = day;
+                if (monthSelect) monthSelect.value = month;
+                if (yearSelect) yearSelect.value = year;
+                if (hiddenInput) hiddenInput.value = selectedDate;
+                
+                // Initialize history
+                history = [JSON.parse(JSON.stringify(moviesData))];
+                historyIndex = 0;
+                
+            } catch (e) {
+                console.error('❌ Load error:', e);
+                moviesData = {'GALAXY VINH': [], 'GALAXY CINE+ VINCOM PLAZA VINH': []};
+                history = [JSON.parse(JSON.stringify(moviesData))];
+                historyIndex = 0;
+            }
+        }
+
+        function loadData() {
+            const cinema = document.getElementById('cinemaSelect').value;
+            currentCinema = cinema;
+            const data = moviesData[cinema] || [];
+            renderMoviesList(data);
+            generatePreview(data);
+        }
+
+        document.getElementById('posterInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    currentPosterData = event.target.result;
+                    document.getElementById('posterPreview').src = currentPosterData;
+                    document.getElementById('posterPreview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function addShowtime(format) {
+            const sectionId = format.replace(/\s+/g, '');
+            const hour = document.getElementById('hourSelect' + sectionId).value;
+            const minute = document.getElementById('minuteSelect' + sectionId).value;
+            const time = `${hour}:${minute}`;
+            
+            if (!currentShowtimes[format]) {
+                currentShowtimes[format] = [];
+            }
+            
+            if (!currentShowtimes[format].includes(time)) {
+                currentShowtimes[format].push(time);
+                currentShowtimes[format].sort();
+                renderShowtimes(format);
+            }
+        }
+
+        function removeShowtime(format, time) {
+            currentShowtimes[format] = currentShowtimes[format].filter(t => t !== time);
+            renderShowtimes(format);
+        }
+
+        function renderShowtimes(format) {
+            const sectionId = format.replace(/\s+/g, '');
+            const container = document.getElementById('showtimesList' + sectionId);
+            
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (!currentShowtimes[format]) {
+                currentShowtimes[format] = [];
+            }
+            
+            currentShowtimes[format].forEach(time => {
+                const tag = document.createElement('div');
+                tag.className = 'showtime-tag';
+                tag.innerHTML = `
+                    <span>${time}</span>
+                    <button class="btn-danger" onclick="removeShowtime('${format}', '${time}')">✕</button>
+                `;
+                container.appendChild(tag);
+            });
+        }
+
+        function saveMovie() {
+            const title = document.getElementById('movieTitle').value.trim();
+            const format = document.getElementById('movieFormat').value;
+            const language = document.getElementById('movieLanguage').value;
+            const ageRating = document.getElementById('ageRating').value;
+            const sneakShow = document.getElementById('sneakShow').checked;
+
+            console.log('=== SAVE MOVIE DEBUG ===');
+            console.log('Title:', title);
+            console.log('Format:', format);
+            console.log('Language:', language);
+            console.log('Poster:', currentPosterData ? 'OK' : 'MISSING');
+            console.log('currentShowtimes:', currentShowtimes);
+
+            if (!title || !currentPosterData) {
+                alert('Vui lòng điền đầy đủ thông tin!');
+                console.error('❌ Missing title or poster');
+                return;
+            }
+
+            // Check if any showtime exists (dynamic)
+            const hasShowtimes = Object.keys(currentShowtimes).some(key => 
+                currentShowtimes[key] && currentShowtimes[key].length > 0
+            );
+            
+            console.log('hasShowtimes:', hasShowtimes);
+            console.log('Showtime keys with data:', Object.keys(currentShowtimes).filter(k => currentShowtimes[k] && currentShowtimes[k].length > 0));
+            
+            if (!hasShowtimes) {
+                alert('Vui lòng thêm ít nhất một giờ chiếu!');
+                console.error('❌ No showtimes found');
+                return;
+            }
+
+            let subtitle = '';
+            let parts = [];
+            
+            if (format) parts.push(format);
+            if (language) parts.push(language);
+            if (sneakShow) parts.push('SneakShow');
+            
+            if (parts.length > 0) {
+                subtitle = parts.join(', ');
+            }
+
+            const currentDateForMovie = new Date().toISOString().split('T')[0];
+
+            const movie = {
+                id: editingMovieId || Date.now(),
+                title,
+                subtitle,
+                format,
+                language,
+                sneakShow,
+                ageRating,
+                poster: currentPosterData,
+                dateCreated: currentDateForMovie,
+                showtimes: JSON.parse(JSON.stringify(currentShowtimes)) // Copy all showtimes
+            };
+
+            console.log('Movie object created:', movie);
+
+            if (!moviesData[currentCinema]) {
+                moviesData[currentCinema] = [];
+            }
+
+            if (editingMovieId) {
+                const index = moviesData[currentCinema].findIndex(m => m.id === editingMovieId);
+                if (index !== -1) {
+                    moviesData[currentCinema][index] = movie;
+                    console.log('✅ Updated movie at index:', index);
+                }
+            } else {
+                moviesData[currentCinema].push(movie);
+                console.log('✅ Added new movie, total:', moviesData[currentCinema].length);
+            }
+
+            saveToHistory();
+            saveToLocalStorage();
+            resetForm();
+            loadData();
+            console.log('=== SAVE COMPLETE ===');
+            
+            const notification = document.getElementById('saveNotification');
+            notification.classList.remove('hiding');
+            notification.classList.add('show');
+            setTimeout(() => {
+                notification.classList.add('hiding');
+                setTimeout(() => {
+                    notification.classList.remove('show', 'hiding');
+                }, 300);
+            }, 2000);
+        }
+
+        function resetForm() {
+            document.getElementById('movieTitle').value = '';
+            document.getElementById('movieFormat').value = '';
+            document.getElementById('movieLanguage').value = '';
+            document.getElementById('sneakShow').checked = false;
+            document.getElementById('posterInput').value = '';
+            document.getElementById('posterPreview').style.display = 'none';
+            
+            // Reset all showtimes
+            currentShowtimes = {};
+            
+            currentPosterData = null;
+            editingMovieId = null;
+            
+            // Trigger sections update
+            updateShowtimeSections();
+        }
+
+        function editMovie(id) {
+            const movie = moviesData[currentCinema].find(m => m.id === id);
+            if (!movie) return;
+
+            console.log('=== EDIT MOVIE ===');
+            console.log('Movie showtimes:', movie.showtimes);
+
+            editingMovieId = id;
+            document.getElementById('movieTitle').value = movie.title;
+            document.getElementById('movieFormat').value = movie.format || '';
+            document.getElementById('movieLanguage').value = movie.language || '';
+            document.getElementById('sneakShow').checked = movie.sneakShow || false;
+            document.getElementById('ageRating').value = movie.ageRating;
+            
+            currentPosterData = movie.poster;
+            document.getElementById('posterPreview').src = currentPosterData;
+            document.getElementById('posterPreview').style.display = 'block';
+
+            // Load all showtimes from movie
+            currentShowtimes = JSON.parse(JSON.stringify(movie.showtimes || {}));
+            console.log('Loaded currentShowtimes:', currentShowtimes);
+            
+            // Trigger sections update based on format + language
+            updateShowtimeSections();
+            console.log('After updateShowtimeSections, currentShowtimes:', currentShowtimes);
+
+            document.querySelector('.left-panel').scrollTop = 0;
+        }
+
+        function deleteMovie(id) {
+            if (!confirm('Bạn có chắc muốn xóa phim này?')) return;
+            
+            if (moviesData[currentCinema]) {
+                moviesData[currentCinema] = moviesData[currentCinema].filter(m => m.id !== id);
+            }
+            saveToHistory();
+            saveToLocalStorage();
+            loadData();
+        }
+
+        function changeMovieOrder(movieId, newPosition, totalMovies) {
+            newPosition = parseInt(newPosition);
+            
+            // Validate input
+            if (isNaN(newPosition) || newPosition < 1 || newPosition > totalMovies) {
+                alert(`Vui lòng nhập số từ 1 đến ${totalMovies}`);
+                loadData(); // Reload to reset input
+                return;
+            }
+            
+            const movies = moviesData[currentCinema];
+            const currentIndex = movies.findIndex(m => m.id === movieId);
+            
+            if (currentIndex === -1) return;
+            
+            const newIndex = newPosition - 1;
+            
+            if (currentIndex === newIndex) return; // No change
+            
+            // Move movie to new position
+            const [movedMovie] = movies.splice(currentIndex, 1);
+            movies.splice(newIndex, 0, movedMovie);
+            
+            saveToHistory();
+            saveToLocalStorage();
+            loadData();
+        }
+
+        let draggedElement = null;
+        let draggedIndex = null;
+
+        function renderMoviesList(movies) {
+            const container = document.getElementById('moviesList');
+            const headerCounter = document.getElementById('headerMovieCount');
+            
+            // Update header counter - format "X phim" hoặc "X/X phim"
+            if (movies.length === 0) {
+                headerCounter.textContent = '0 phim';
+            } else {
+                headerCounter.textContent = `${movies.length} phim`;
+            }
+            
+            // Determine cinema class for background color
+            const cinemaClass = currentCinema === 'GALAXY VINH' ? 'cinema-vinh' : 'cinema-vincom';
+            
+            // Add cinema class to container
+            container.className = `movies-list ${cinemaClass}`;
+            
+            if (movies.length === 0) {
+                container.innerHTML = '<div class="empty-state">Chưa có phim nào được lưu</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            movies.forEach((movie, index) => {
+                const card = document.createElement('div');
+                card.className = 'movie-card';
+                card.dataset.index = index;
+                
+                console.log('Rendering movie card:', movie.title);
+                console.log('  movie.showtimes:', movie.showtimes);
+                
+                // Collect all showtimes dynamically
+                const allShowtimes = [];
+                Object.keys(movie.showtimes || {}).forEach(format => {
+                    if (movie.showtimes[format] && movie.showtimes[format].length > 0) {
+                        movie.showtimes[format].forEach(time => {
+                            allShowtimes.push(`${time} (${format})`);
+                        });
+                    }
+                });
+                
+                console.log('  allShowtimes:', allShowtimes);
+                
+                const showtimesHTML = allShowtimes.length > 0 
+                    ? allShowtimes.map(t => `<span class="showtime-tag">${t}</span>`).join('')
+                    : '<span style="color: #ef4444; font-style: italic;">Chưa có giờ chiếu</span>';
+
+                card.innerHTML = `
+                    <div class="movie-card-header">
+                        <div style="flex: 1;">
+                            <h3><span class="age-badge age-${movie.ageRating}">${movie.ageRating}</span> ${movie.title}${movie.subtitle ? ' (' + movie.subtitle + ')' : ''}</h3>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="number" class="order-input" value="${index + 1}" min="1" max="${movies.length}" 
+                                   onchange="changeMovieOrder(${movie.id}, this.value, ${movies.length})"
+                                   onclick="event.stopPropagation()"
+                                   title="Nhập số thứ tự để sắp xếp phim">
+                            <span style="font-size: 13px; color: #9ca3af;">/${movies.length}</span>
+                            <button class="btn-danger" onclick="event.stopPropagation(); deleteMovie(${movie.id})">Xóa</button>
+                        </div>
+                    </div>
+                    <div class="showtimes-list">
+                        ${showtimesHTML}
+                    </div>
+                `;
+
+                let dragTimer = null;
+                let isDragging = false;
+
+                // Double click to edit
+                card.addEventListener('dblclick', function(e) {
+                    if (!isDragging) {
+                        editMovie(movie.id);
+                    }
+                });
+
+                // Mousedown to start drag timer
+                card.addEventListener('mousedown', function(e) {
+                    if (e.target.closest('.btn-danger')) return;
+                    
+                    isDragging = false;
+                    dragTimer = setTimeout(() => {
+                        isDragging = true;
+                        card.draggable = true;
+                    }, 200); // 200ms hold to start drag
+                });
+
+                // Clear timer if mouse up before drag starts
+                card.addEventListener('mouseup', function(e) {
+                    clearTimeout(dragTimer);
+                    if (!isDragging) {
+                        card.draggable = false;
+                    }
+                });
+
+                card.addEventListener('mouseleave', function(e) {
+                    clearTimeout(dragTimer);
+                });
+
+                card.addEventListener('dragstart', function(e) {
+                    if (!isDragging) {
+                        e.preventDefault();
+                        return;
+                    }
+                    draggedElement = card;
+                    draggedIndex = parseInt(card.dataset.index);
+                    card.classList.add('dragging');
+                });
+
+                card.addEventListener('dragend', function(e) {
+                    card.classList.remove('dragging');
+                    card.draggable = false;
+                    isDragging = false;
+                });
+
+                card.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                });
+
+                card.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    const dropIndex = parseInt(card.dataset.index);
+                    
+                    if (draggedIndex !== dropIndex) {
+                        const movedMovie = moviesData[currentCinema].splice(draggedIndex, 1)[0];
+                        moviesData[currentCinema].splice(dropIndex, 0, movedMovie);
+                        saveToHistory();
+                        saveToLocalStorage();
+                        loadData();
+                    }
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        function formatDate(dateStr) {
+            const [year, month, day] = dateStr.split('-');
+            return `${day}/${month}/${year}`;
+        }
+
+        function generatePreview(movies) {
+            const canvas = document.getElementById('scheduleCanvas');
+            const ctx = canvas.getContext('2d');
+
+            if (movies.length === 0) {
+                canvas.width = 800;
+                canvas.height = 200;
+                ctx.fillStyle = '#f3f4f6';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#9ca3af';
+                ctx.font = '20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Chưa có phim để hiển thị', 400, 100);
+                return;
+            }
+
+            const imagePromises = movies.map(movie => {
+                return new Promise((resolve) => {
+                    if (movie.poster) {
+                        const img = new Image();
+                        img.onload = () => resolve({ id: movie.id, img });
+                        img.onerror = () => resolve({ id: movie.id, img: null });
+                        img.src = movie.poster;
+                    } else {
+                        resolve({ id: movie.id, img: null });
+                    }
+                });
+            });
+
+            Promise.all(imagePromises).then(images => {
+                const imageMap = {};
+                images.forEach(({ id, img }) => {
+                    imageMap[id] = img;
+                });
+                renderCanvas(movies, imageMap, ctx, canvas);
+            });
+        }
+
+        function wrapText(ctx, text, maxWidth) {
+            const words = text.split(' ');
+            const lines = [];
+            let currentLine = words[0];
+
+            for (let i = 1; i < words.length; i++) {
+                const testLine = currentLine + ' ' + words[i];
+                const metrics = ctx.measureText(testLine);
+                
+                if (metrics.width > maxWidth) {
+                    lines.push(currentLine);
+                    currentLine = words[i];
+                } else {
+                    currentLine = testLine;
+                }
+            }
+            lines.push(currentLine);
+            return lines;
+        }
+
+        function wrapShowtimes(ctx, times, startX, maxX, spacing) {
+            const lines = [];
+            let currentLine = [];
+            let currentX = startX;
+
+            times.forEach(time => {
+                const timeWidth = ctx.measureText(time).width;
+                
+                if (currentX + timeWidth > maxX && currentLine.length > 0) {
+                    lines.push(currentLine);
+                    currentLine = [time];
+                    currentX = startX + timeWidth + spacing;
+                } else {
+                    currentLine.push(time);
+                    currentX += timeWidth + spacing;
+                }
+            });
+
+            if (currentLine.length > 0) {
+                lines.push(currentLine);
+            }
+
+            return lines;
+        }
+
+        function renderCanvas(movies, imageMap, ctx, canvas) {
+            const cinemaConfig = CINEMA_CONFIG[currentCinema];
+            
+            const canvasWidth = 800;
+            const headerHeight = 120;
+            const footerHeight = 70; // Giảm từ 120 xuống 70
+            const posterWidth = 135;
+            const posterHeight = 190;
+            const movieLeftMargin = 165;
+            const titleLineHeight = 30;
+            const showtimeLineHeight = 32;
+            const showtimeSpacing = 25;
+            const badgeToLineSpacing = 10; // Giảm từ 20 xuống 10
+
+            // Calculate heights for each movie
+            const movieHeights = movies.map(movie => {
+                ctx.font = 'bold 22px Arial';
+                
+                let fullTitle = movie.title;
+                let infoParts = [];
+                if (movie.format) infoParts.push(movie.format);
+                if (movie.language) infoParts.push(movie.language);
+                if (movie.sneakShow) infoParts.push('SneakShow');
+                
+                if (infoParts.length > 0) {
+                    fullTitle += ' (' + infoParts.join(', ') + ')';
+                }
+                
+                const maxTextWidth = canvasWidth - movieLeftMargin - 30;
+                const titleLines = wrapText(ctx, fullTitle, maxTextWidth);
+                const titleHeight = titleLines.length * titleLineHeight + 10;
+                
+                // Calculate showtimes height for all format combinations
+                let showtimesHeight = 0;
+                ctx.font = 'bold 20px Arial';
+                
+                const showtimeKeys = Object.keys(movie.showtimes).filter(key => 
+                    movie.showtimes[key] && movie.showtimes[key].length > 0
+                );
+                
+                if (showtimeKeys.length === 1) {
+                    const times = movie.showtimes[showtimeKeys[0]];
+                    const lines = wrapShowtimes(ctx, times, movieLeftMargin, 780, showtimeSpacing);
+                    showtimesHeight = lines.length * showtimeLineHeight;
+                } else if (showtimeKeys.length > 1) {
+                    // Find max label width (không tính dấu :)
+                    ctx.font = 'bold 18px Arial';
+                    let maxLabelWidth = 0;
+                    showtimeKeys.forEach(key => {
+                        const w = ctx.measureText(key).width;
+                        if (w > maxLabelWidth) maxLabelWidth = w;
+                    });
+                    
+                    const colonX = movieLeftMargin + maxLabelWidth + 5;
+                    const showtimeStartX = colonX + ctx.measureText(':').width + 10;
+                    
+                    showtimeKeys.forEach(key => {
+                        ctx.font = 'bold 20px Arial';
+                        const times = movie.showtimes[key];
+                        const lines = wrapShowtimes(ctx, times, showtimeStartX, 780, showtimeSpacing);
+                        showtimesHeight += lines.length * showtimeLineHeight + 5;
+                    });
+                }
+                
+                const totalTextHeight = titleHeight + showtimesHeight;
+                const contentHeight = Math.max(posterHeight, totalTextHeight);
+                
+                // Badge đến line = 20px
+                return contentHeight + badgeToLineSpacing;
+            });
+
+            const totalMoviesHeight = movieHeights.reduce((sum, h) => sum + h, 0) + (movies.length - 1) * 25; // Giảm từ 40 xuống 25
+            const canvasHeight = headerHeight + totalMoviesHeight + footerHeight + 20; // Giảm buffer từ 40 xuống 20
+
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            ctx.fillStyle = cinemaConfig.backgroundColor;
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            // Draw header with LED frame
+            const headerBoxX = 155;
+            const headerBoxY = 15;
+            const headerBoxW = 490;
+            const headerBoxH = 75;
+            const headerRadius = 12;
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(headerBoxX + headerRadius, headerBoxY);
+            ctx.lineTo(headerBoxX + headerBoxW - headerRadius, headerBoxY);
+            ctx.arcTo(headerBoxX + headerBoxW, headerBoxY, headerBoxX + headerBoxW, headerBoxY + headerRadius, headerRadius);
+            ctx.lineTo(headerBoxX + headerBoxW, headerBoxY + headerBoxH - headerRadius);
+            ctx.arcTo(headerBoxX + headerBoxW, headerBoxY + headerBoxH, headerBoxX + headerBoxW - headerRadius, headerBoxY + headerBoxH, headerRadius);
+            ctx.lineTo(headerBoxX + headerRadius, headerBoxY + headerBoxH);
+            ctx.arcTo(headerBoxX, headerBoxY + headerBoxH, headerBoxX, headerBoxY + headerBoxH - headerRadius, headerRadius);
+            ctx.lineTo(headerBoxX, headerBoxY + headerRadius);
+            ctx.arcTo(headerBoxX, headerBoxY, headerBoxX + headerRadius, headerBoxY, headerRadius);
+            ctx.closePath();
+            ctx.stroke();
+            
+            const innerPadding = 8;
+            const innerBoxX = headerBoxX + innerPadding;
+            const innerBoxY = headerBoxY + innerPadding;
+            const innerBoxW = headerBoxW - 2 * innerPadding;
+            const innerBoxH = headerBoxH - 2 * innerPadding;
+            
+            ctx.fillStyle = '#e8dcc8';
+            ctx.beginPath();
+            ctx.moveTo(innerBoxX + headerRadius, innerBoxY);
+            ctx.lineTo(innerBoxX + innerBoxW - headerRadius, innerBoxY);
+            ctx.arcTo(innerBoxX + innerBoxW, innerBoxY, innerBoxX + innerBoxW, innerBoxY + headerRadius, headerRadius);
+            ctx.lineTo(innerBoxX + innerBoxW, innerBoxY + innerBoxH - headerRadius);
+            ctx.arcTo(innerBoxX + innerBoxW, innerBoxY + innerBoxH, innerBoxX + innerBoxW - headerRadius, innerBoxY + innerBoxH, headerRadius);
+            ctx.lineTo(innerBoxX + headerRadius, innerBoxY + innerBoxH);
+            ctx.arcTo(innerBoxX, innerBoxY + innerBoxH, innerBoxX, innerBoxY + innerBoxH - headerRadius, headerRadius);
+            ctx.lineTo(innerBoxX, innerBoxY + headerRadius);
+            ctx.arcTo(innerBoxX, innerBoxY, innerBoxX + headerRadius, innerBoxY, headerRadius);
+            ctx.closePath();
+            ctx.fill();
+            
+            // LED dots
+            const dotRadius = 3;
+            const dotMargin = headerBoxY + innerPadding / 2;
+            const dotCountTop = 42;
+            const dotSpacingTop = (headerBoxW - 20) / (dotCountTop - 1);
+            ctx.fillStyle = '#ffffff';
+            
+            for (let i = 0; i < dotCountTop; i++) {
+                const dotX = headerBoxX + 10 + i * dotSpacingTop;
+                ctx.beginPath();
+                ctx.arc(dotX, dotMargin, dotRadius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            const dotMarginBottom = headerBoxY + headerBoxH - innerPadding / 2;
+            for (let i = 0; i < dotCountTop; i++) {
+                const dotX = headerBoxX + 10 + i * dotSpacingTop;
+                ctx.beginPath();
+                ctx.arc(dotX, dotMarginBottom, dotRadius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            const dotCountSide = Math.floor(headerBoxH / (headerBoxW / dotCountTop));
+            const dotSpacingSide = (headerBoxH - 20) / (dotCountSide - 1);
+            
+            for (let i = 0; i < dotCountSide; i++) {
+                const dotY = headerBoxY + 10 + i * dotSpacingSide;
+                ctx.beginPath();
+                ctx.arc(headerBoxX + innerPadding / 2, dotY, dotRadius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            for (let i = 0; i < dotCountSide; i++) {
+                const dotY = headerBoxY + 10 + i * dotSpacingSide;
+                ctx.beginPath();
+                ctx.arc(headerBoxX + headerBoxW - innerPadding / 2, dotY, dotRadius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.fillStyle = '#1e40af';
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(cinemaConfig.name, 400, 42);
+            
+            const date = selectedDate ? formatDate(selectedDate) : '01/01/2026';
+            ctx.font = 'bold 16px Arial';
+            
+            const textParts = [
+                { text: 'Lịch ', color: '#1e40af' },
+                { text: 'DỰ KIẾN', color: '#dc2626' },
+                { text: ` ngày ${date}`, color: '#1e40af' }
+            ];
+            
+            let xPos = 400;
+            const totalWidth = textParts.reduce((sum, part) => {
+                ctx.font = 'bold 16px Arial';
+                return sum + ctx.measureText(part.text).width;
+            }, 0);
+            
+            xPos = 400 - totalWidth / 2;
+            textParts.forEach(part => {
+                ctx.fillStyle = part.color;
+                ctx.textAlign = 'left';
+                ctx.fillText(part.text, xPos, 67);
+                xPos += ctx.measureText(part.text).width;
+            });
+
+            let yPos = headerHeight + 20;
+
+            const ageColors = {
+                'P': '#10b981',
+                'K': '#f59e0b',
+                'T13': '#ef4444',
+                'T16': '#dc2626',
+                'T18': '#991b1b'
+            };
+
+            movies.forEach((movie, index) => {
+                const movieStartY = yPos;
+                
+                // Draw poster
+                const img = imageMap[movie.id];
+                const posterX = 10;
+                const posterY = yPos;
+
+                if (img) {
+                    ctx.drawImage(img, posterX, posterY, posterWidth, posterHeight);
+                } else {
+                    ctx.fillStyle = '#d1d5db';
+                    ctx.fillRect(posterX, posterY, posterWidth, posterHeight);
+                }
+
+                // Age rating badge at TOP RIGHT CORNER of poster
+                const badgeX = posterX + posterWidth;
+                const badgeY = posterY;
+                const badgeRadius = 20;
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(badgeX, badgeY, badgeRadius + 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = ageColors[movie.ageRating];
+                ctx.beginPath();
+                ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 13px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(movie.ageRating, badgeX, badgeY + 5);
+                
+                // Draw title
+                ctx.font = 'bold 22px Arial';
+                ctx.textAlign = 'left';
+                
+                let fullTitle = movie.title;
+                let infoParts = [];
+                if (movie.format) infoParts.push(movie.format);
+                if (movie.language) infoParts.push(movie.language);
+                if (movie.sneakShow) infoParts.push('SneakShow');
+                
+                if (infoParts.length > 0) {
+                    fullTitle += ' (' + infoParts.join(', ') + ')';
+                }
+                
+                const maxTextWidth = canvasWidth - movieLeftMargin - 30;
+                const titleLines = wrapText(ctx, fullTitle, maxTextWidth);
+                
+                let textY = posterY + 25;
+                
+                titleLines.forEach((line, lineIndex) => {
+                    const parenIndex = line.indexOf('(');
+                    if (parenIndex !== -1) {
+                        const beforeParen = line.substring(0, parenIndex);
+                        const afterParen = line.substring(parenIndex);
+                        
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillText(beforeParen, movieLeftMargin, textY);
+                        
+                        const beforeWidth = ctx.measureText(beforeParen).width;
+                        ctx.fillStyle = '#fbbf24';
+                        ctx.fillText(afterParen, movieLeftMargin + beforeWidth, textY);
+                    } else {
+                        if (lineIndex > 0 && fullTitle.indexOf('(') !== -1) {
+                            ctx.fillStyle = '#fbbf24';
+                        } else {
+                            ctx.fillStyle = '#ffffff';
+                        }
+                        ctx.fillText(line, movieLeftMargin, textY);
+                    }
+                    textY += titleLineHeight;
+                });
+                
+                textY += 10;
+                
+                // Draw showtimes
+                const showtimeKeys = Object.keys(movie.showtimes).filter(key => 
+                    movie.showtimes[key] && movie.showtimes[key].length > 0
+                );
+                
+                ctx.fillStyle = '#ffffff';
+                
+                if (showtimeKeys.length === 1) {
+                    // Single format - no label
+                    ctx.font = 'bold 20px Arial';
+                    const times = movie.showtimes[showtimeKeys[0]];
+                    const lines = wrapShowtimes(ctx, times, movieLeftMargin, 780, showtimeSpacing);
+                    
+                    lines.forEach((line) => {
+                        let stX = movieLeftMargin;
+                        line.forEach(time => {
+                            ctx.fillText(time, stX, textY);
+                            stX += ctx.measureText(time).width + showtimeSpacing;
+                        });
+                        textY += showtimeLineHeight;
+                    });
+                } else if (showtimeKeys.length > 1) {
+                    // Multiple formats - labels căn trái, dấu : thẳng hàng
+                    // Tìm label dài nhất (không tính dấu :)
+                    ctx.font = 'bold 18px Arial';
+                    let maxLabelWidth = 0;
+                    showtimeKeys.forEach(key => {
+                        const w = ctx.measureText(key).width; // Không có dấu :
+                        if (w > maxLabelWidth) maxLabelWidth = w;
+                    });
+                    
+                    const colonX = movieLeftMargin + maxLabelWidth + 5; // Vị trí dấu : cố định
+                    const showtimeStartX = colonX + ctx.measureText(':').width + 10; // Giờ chiếu sau dấu :
+                    
+                    showtimeKeys.forEach(key => {
+                        // Draw label text (căn trái từ movieLeftMargin)
+                        ctx.font = 'bold 18px Arial';
+                        ctx.textAlign = 'left';
+                        ctx.fillText(key, movieLeftMargin, textY);
+                        
+                        // Draw dấu : ở vị trí cố định
+                        ctx.fillText(':', colonX, textY);
+                        
+                        // Draw showtimes sau dấu :
+                        ctx.font = 'bold 20px Arial';
+                        const times = movie.showtimes[key];
+                        const lines = wrapShowtimes(ctx, times, showtimeStartX, 780, showtimeSpacing);
+                        
+                        lines.forEach((line, lineIndex) => {
+                            let stX = lineIndex === 0 ? showtimeStartX : movieLeftMargin;
+                            line.forEach(time => {
+                                ctx.fillText(time, stX, textY);
+                                stX += ctx.measureText(time).width + showtimeSpacing;
+                            });
+                            textY += showtimeLineHeight;
+                        });
+                        
+                        textY += 5;
+                    });
+                }
+                
+                // Calculate line position - badge đến line = 20px
+                const contentHeight = Math.max(posterHeight, textY - posterY);
+                const lineY = movieStartY + contentHeight + badgeToLineSpacing;
+                
+                // Update yPos for next movie
+                yPos = lineY;
+                
+                // Draw divider line if not last movie
+                if (index < movies.length - 1) {
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(20, lineY);
+                    ctx.lineTo(780, lineY);
+                    ctx.stroke();
+                    
+                    yPos += 25; // Giảm từ 40 xuống 25
+                }
+            });
+
+            // Footer
+            yPos += 15; // Giảm từ 25 xuống 15
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Cập nhật lịch chiếu ${currentCinema} CHÍNH XÁC NHẤT tại`, 400, yPos);
+            
+            yPos += 20;
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText(cinemaConfig.url, 400, yPos);
+        }
+
+        // Store last used directory handles in IndexedDB (persistent across sessions)
+        let lastPNGFolderHandle = null;
+        let lastJSONFolderHandle = null;
+        
+        // IndexedDB helper functions
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('GalaxyCinemaDB', 1);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('folders')) {
+                        db.createObjectStore('folders');
+                    }
+                };
+            });
+        }
+        
+        async function saveFolderHandle(key, handle) {
+            try {
+                const db = await openDB();
+                const tx = db.transaction('folders', 'readwrite');
+                const store = tx.objectStore('folders');
+                store.put(handle, key);
+                await tx.complete;
+                console.log('✅ Đã lưu folder handle:', key);
+            } catch (e) {
+                console.error('❌ Lỗi lưu folder handle:', e);
+            }
+        }
+        
+        async function loadFolderHandle(key) {
+            try {
+                const db = await openDB();
+                const tx = db.transaction('folders', 'readonly');
+                const store = tx.objectStore('folders');
+                return new Promise((resolve, reject) => {
+                    const request = store.get(key);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            } catch (e) {
+                console.error('❌ Lỗi load folder handle:', e);
+                return null;
+            }
+        }
+        
+        // Load saved folder handles on startup
+        (async function() {
+            lastPNGFolderHandle = await loadFolderHandle('pngFolder');
+            lastJSONFolderHandle = await loadFolderHandle('jsonFolder');
+            if (lastPNGFolderHandle) console.log('✅ Đã load PNG folder handle');
+            if (lastJSONFolderHandle) console.log('✅ Đã load JSON folder handle');
+        })();
+
+        async function downloadSchedule() {
+            const canvas = document.getElementById('scheduleCanvas');
+            const imageData = canvas.toDataURL('image/png'); // Full quality PNG
+            
+            // Format: dd-mm-yyyy TenRap.png
+            const [year, month, day] = selectedDate.split('-');
+            const dateStr = `${day}-${month}-${year}`;
+            const cinemaName = currentCinema.replace(/GALAXY |CINE\+ /g, '').trim();
+            const fileName = `${dateStr} ${cinemaName}.png`;
+            
+            // Try File System Access API first (for choosing folder)
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const options = {
+                        suggestedName: fileName,
+                        types: [{
+                            description: 'PNG Images',
+                            accept: {'image/png': ['.png']}
+                        }]
+                    };
+                    
+                    // Use saved PNG folder if available
+                    if (lastPNGFolderHandle) {
+                        try {
+                            // Verify we still have permission
+                            const permission = await lastPNGFolderHandle.queryPermission({ mode: 'readwrite' });
+                            if (permission === 'granted') {
+                                options.startIn = lastPNGFolderHandle;
+                                console.log('📂 Sử dụng folder đã lưu');
+                            }
+                        } catch (e) {
+                            console.log('⚠️ Không thể dùng folder cũ:', e);
+                        }
+                    }
+                    
+                    const handle = await window.showSaveFilePicker(options);
+                    
+                    // Save parent folder for next time
+                    try {
+                        const parent = await handle.getParent();
+                        lastPNGFolderHandle = parent;
+                        await saveFolderHandle('pngFolder', parent);
+                        console.log('✅ Đã lưu PNG folder');
+                    } catch (e) {
+                        console.log('⚠️ Không thể lưu folder:', e);
+                    }
+                    
+                    const blob = await (await fetch(imageData)).blob();
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    
+                    // Save movie data to localStorage after successful download
+                    saveMovieDataOnDownload();
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('Save failed:', err);
+                    }
+                }
+            } else {
+                // Fallback to traditional download
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = imageData;
+                link.click();
+                
+                // Save movie data to localStorage
+                saveMovieDataOnDownload();
+            }
+        }
+        
+        function saveMovieDataOnDownload() {
+            try {
+                // Save COMPLETE state in ONE object
+                const completeState = {
+                    selectedDate: selectedDate,
+                    moviesData: JSON.parse(JSON.stringify(moviesData)),
+                    timestamp: new Date().toISOString()
+                };
+                
+                localStorage.setItem('galaxyCinema_completeState', JSON.stringify(completeState));
+                console.log('✅ Saved complete state:', completeState);
+                
+            } catch (e) {
+                if (e.name === 'QuotaExceededError') {
+                    // Clear old data and retry
+                    localStorage.removeItem('galaxyCinema_savedDates');
+                    for (let i = localStorage.length - 1; i >= 0; i--) {
+                        const key = localStorage.key(i);
+                        if (key && key.startsWith('galaxyCinema_')) {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                    
+                    const completeState = {
+                        selectedDate: selectedDate,
+                        moviesData: JSON.parse(JSON.stringify(moviesData)),
+                        timestamp: new Date().toISOString()
+                    };
+                    localStorage.setItem('galaxyCinema_completeState', JSON.stringify(completeState));
+                    console.log('✅ Saved after cleanup');
+                } else {
+                    console.error('❌ Save error:', e);
+                }
+            }
+        }
+        
+        
+        function showNotification(message, type = 'success') {
+            const colors = {
+                success: '#10b981',
+                info: '#3b82f6',
+                warning: '#f59e0b',
+                error: '#ef4444'
+            };
+            
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${colors[type]};
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                font-weight: 600;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 10000;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transition = 'opacity 0.3s';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        document.getElementById('cinemaSelect').addEventListener('change', loadData);
+
+        console.log('🔄 Đang tải dữ liệu...');
+        loadFromLocalStorage();
+        console.log('📊 moviesData sau khi load:', moviesData);
+        loadData();
+        console.log('✅ Khởi tạo hoàn tất');
+        
+        // Toggle data menu
+        function toggleDataMenu() {
+            const dropdown = document.getElementById('dataMenuDropdown');
+            dropdown.classList.toggle('show');
+        }
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const wrapper = e.target.closest('.menu-wrapper');
+            const dropdown = document.getElementById('dataMenuDropdown');
+            
+            if (!wrapper && dropdown) {
+                dropdown.classList.remove('show');
+            }
+        });
+
+        // Auto clean movie title when pasting (remove Galaxy appended text)
+        document.getElementById('movieTitle').addEventListener('paste', function (e) {
+            e.preventDefault();
+
+            let text = (e.clipboardData || window.clipboardData).getData('text');
+
+            // Only keep first line
+            text = text.split('\n')[0];
+
+            // Remove Galaxy appended text
+            text = text.replace(/Xem thêm tại:.*/i, '').trim();
+
+            this.value = text;
+        });
+
+    </script>
+</body>
+</html>
