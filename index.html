@@ -240,7 +240,7 @@
             align-items: end;
         }
         .time-picker select {
-            flex: 1;
+            /* Removed flex: 1 to allow fixed width */
         }
         .btn {
             padding: 10px 20px;
@@ -722,6 +722,10 @@
                 margin-bottom: 12px;
             }
         }
+        
+        .minute-option:hover, .hour-option:hover {
+            background: #e5e7eb;
+        }
     </style>
 </head>
 <body>
@@ -825,7 +829,7 @@
                 <div class="form-group">
                     <label>Định dạng:</label>
                     <select id="movieFormat">
-                        <option value="">Không hiển thị</option>
+                        <option value="2D">2D</option>
                         <option value="2D/3D">2D / 3D</option>
                         <option value="2D/Cine de Kids 2D">2D / Cine de Kids 2D</option>
                     </select>
@@ -834,9 +838,8 @@
                 <div class="form-group">
                     <label>Ngôn ngữ:</label>
                     <select id="movieLanguage">
-                        <option value="">Không hiển thị</option>
+                        <option value="Phụ đề" selected>Phụ đề</option>
                         <option value="Lồng Tiếng">Lồng Tiếng</option>
-                        <option value="Phụ đề">Phụ đề</option>
                         <option value="Phụ đề/Lồng Tiếng">Phụ đề / Lồng Tiếng</option>
                     </select>
                 </div>
@@ -1081,6 +1084,181 @@
                 closeCustomConfirm();
             }
             
+            // Q W E R - Quick minute shortcuts (focus-based)
+            // A S D - Quick hour shortcuts (7, 8, 9) (focus-based)
+            // Space - Add showtime (focus-based)
+            if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+                const activeElement = document.activeElement;
+                const isTyping = activeElement.tagName === 'INPUT' || 
+                                 activeElement.tagName === 'TEXTAREA';
+                
+                if (!isTyping) {
+                    const key = e.key.toLowerCase();
+                    
+                    // Skip if Unikey is composing (đang gõ dấu)
+                    if (e.isComposing || e.keyCode === 229) {
+                        return;
+                    }
+                    
+                    console.log('Key:', key, 'Code:', e.code, 'Composing:', e.isComposing); // DEBUG
+                    
+                    // Space - Add showtime LUÔN (lấy giá trị hiện tại)
+                    if (key === ' ') {
+                        e.preventDefault();
+                        
+                        // Find ANY section that exists and click its button
+                        // Priority: Check if any dropdown is open first
+                        let openDropdown = document.querySelector('[id^="minuteDropdown"][data-open="true"]');
+                        
+                        if (!openDropdown) {
+                            openDropdown = document.querySelector('[id^="hourDropdown"][data-open="true"]');
+                        }
+                        
+                        if (openDropdown) {
+                            // Close dropdown first
+                            openDropdown.style.display = 'none';
+                            openDropdown.dataset.open = 'false';
+                            
+                            // Click Thêm button for this section
+                            const timePicker = openDropdown.closest('.format-section')?.querySelector('.time-picker');
+                            if (timePicker) {
+                                const btn = timePicker.querySelector('.btn-primary');
+                                if (btn) {
+                                    btn.click();
+                                    console.log('Space: Saved (dropdown was open)');
+                                }
+                            }
+                        } else {
+                            // No dropdown open - click ALL Thêm buttons (lưu tất cả sections)
+                            const allButtons = document.querySelectorAll('.time-picker .btn-primary');
+                            let clicked = false;
+                            allButtons.forEach(btn => {
+                                if (btn.textContent.includes('Thêm')) {
+                                    btn.click();
+                                    clicked = true;
+                                }
+                            });
+                            if (clicked) {
+                                console.log('Space: Saved ALL sections');
+                            }
+                        }
+                    }
+                    // Hour shortcuts (A S D + Numbers) - focus-based
+                    else if (key === 'a' || key === 'ă' || key === 'â') {
+                        e.preventDefault();
+                        
+                        const openDropdown = document.querySelector('[id^="hourDropdown"][data-open="true"]');
+                        if (openDropdown && openDropdown.dataset.sectionId) {
+                            selectHour(openDropdown.dataset.sectionId, '07');
+                        }
+                    }
+                    else if (key === 's') {
+                        e.preventDefault();
+                        
+                        const openDropdown = document.querySelector('[id^="hourDropdown"][data-open="true"]');
+                        if (openDropdown && openDropdown.dataset.sectionId) {
+                            selectHour(openDropdown.dataset.sectionId, '08');
+                        }
+                    }
+                    else if (key === 'd' || key === 'đ') {
+                        e.preventDefault();
+                        
+                        const openDropdown = document.querySelector('[id^="hourDropdown"][data-open="true"]');
+                        if (openDropdown && openDropdown.dataset.sectionId) {
+                            selectHour(openDropdown.dataset.sectionId, '09');
+                        }
+                    }
+                    // Number keys to cycle through hours
+                    else if (key >= '0' && key <= '9') {
+                        const openDropdown = document.querySelector('[id^="hourDropdown"][data-open="true"]');
+                        if (openDropdown && openDropdown.dataset.sectionId) {
+                            e.preventDefault();
+                            const sectionId = openDropdown.dataset.sectionId;
+                            const display = document.getElementById(`hourDisplay${sectionId}`);
+                            const currentHour = parseInt(display.dataset.currentValue);
+                            const pressedDigit = parseInt(key);
+                            
+                            // Get the tens digit (1 for 10-19, 2 for 20-23)
+                            const currentTens = Math.floor(currentHour / 10);
+                            const currentOnes = currentHour % 10;
+                            
+                            let newHour;
+                            
+                            // If pressed digit is 1: cycle 10->11->12...->19->10
+                            if (pressedDigit === 1) {
+                                if (currentTens === 1) {
+                                    // Already in 10-19 range, increment
+                                    newHour = currentHour + 1;
+                                    if (newHour > 19) newHour = 10; // Wrap to 10
+                                } else {
+                                    // Jump to 10
+                                    newHour = 10;
+                                }
+                            }
+                            // If pressed digit is 2: cycle 20->21->22->23->20
+                            else if (pressedDigit === 2) {
+                                if (currentTens === 2) {
+                                    // Already in 20-23 range, increment
+                                    newHour = currentHour + 1;
+                                    if (newHour > 23) newHour = 20; // Wrap to 20
+                                } else {
+                                    // Jump to 20
+                                    newHour = 20;
+                                }
+                            }
+                            // Other digits: add to current hour
+                            else if (pressedDigit >= 0 && pressedDigit <= 9) {
+                                newHour = currentHour + pressedDigit;
+                                if (newHour > 23) newHour = 23;
+                                if (newHour < 7) newHour = 7;
+                            }
+                            
+                            if (newHour !== undefined) {
+                                selectHour(sectionId, newHour.toString().padStart(2, '0'));
+                            }
+                        }
+                    }
+                    // Minute shortcuts (Q W E R) - focus-based (chỉ dropdown đang mở)
+                    else if (key === 'q') {
+                        e.preventDefault();
+                        
+                        // Find which minute dropdown is open
+                        const openDropdown = document.querySelector('[id^="minuteDropdown"][data-open="true"]');
+                        if (openDropdown && openDropdown.dataset.sectionId) {
+                            selectMinute(openDropdown.dataset.sectionId, '00'); // Đóng dropdown
+                        }
+                    }
+                    else if (key === 'w' || key === 'ư') {
+                        e.preventDefault();
+                        console.log('W pressed! key:', key, 'code:', e.code); // DEBUG
+                        
+                        const openDropdown = document.querySelector('[id^="minuteDropdown"][data-open="true"]');
+                        if (openDropdown && openDropdown.dataset.sectionId) {
+                            console.log('Found dropdown, selecting 15...'); // DEBUG
+                            selectMinute(openDropdown.dataset.sectionId, '15'); // Đóng dropdown
+                        } else {
+                            console.log('No dropdown open!'); // DEBUG
+                        }
+                    }
+                    else if (key === 'e' || key === 'ê') {
+                        e.preventDefault();
+                        
+                        const openDropdown = document.querySelector('[id^="minuteDropdown"][data-open="true"]');
+                        if (openDropdown && openDropdown.dataset.sectionId) {
+                            selectMinute(openDropdown.dataset.sectionId, '30'); // Đóng dropdown
+                        }
+                    }
+                    else if (key === 'r') {
+                        e.preventDefault();
+                        
+                        const openDropdown = document.querySelector('[id^="minuteDropdown"][data-open="true"]');
+                        if (openDropdown && openDropdown.dataset.sectionId) {
+                            selectMinute(openDropdown.dataset.sectionId, '45'); // Đóng dropdown
+                        }
+                    }
+                }
+            }
+            
             // Ctrl+S - Download
             if (e.ctrlKey && e.key === 's') {
                 e.preventDefault();
@@ -1118,16 +1296,17 @@
             
             const sections = [];
             
-            // Determine which sections to show
-            if (format === '' || format === null) {
-                sections.push('2D');
-            } else if (format === '2D/3D') {
+            // Determine which format sections to show
+            if (format === '2D/3D') {
                 sections.push('2D', '3D');
             } else if (format === '2D/Cine de Kids 2D') {
                 sections.push('2D', 'Cine de Kids 2D');
+            } else {
+                // Default: 2D
+                sections.push(format || '2D');
             }
             
-            // If language is selected, split each section
+            // Language is now required, split each section by language
             const finalSections = [];
             if (language === 'Phụ đề/Lồng Tiếng') {
                 sections.forEach(s => {
@@ -1139,6 +1318,7 @@
             } else if (language === 'Lồng Tiếng') {
                 sections.forEach(s => finalSections.push(s + ' Lồng Tiếng'));
             } else {
+                // Fallback - shouldn't happen since language is required now
                 finalSections.push(...sections);
             }
             
@@ -1171,14 +1351,63 @@
                 section.innerHTML = `
                     <h4>Giờ chiếu ${sectionName}:</h4>
                     <div class="form-group">
-                        <div class="time-picker">
-                            <select id="hourSelect${sectionId}"></select>
-                            <select id="minuteSelect${sectionId}">
-                                <option value="00">00</option>
-                                <option value="15">15</option>
-                                <option value="30">30</option>
-                                <option value="45">45</option>
-                            </select>
+                        <div class="time-picker" style="position: relative;">
+                            <div style="position: relative; display: inline-block;">
+                                <div id="hourDisplay${sectionId}" style="display: inline-block; padding: 8px 20px 8px 8px; border: 2px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; width: 60px; height: 38px; box-sizing: border-box; position: relative; text-align: center; line-height: 22px; font-size: 14px;" onclick="toggleHourDropdown('${sectionId}')">
+                                    <span id="hourValue${sectionId}">07</span>
+                                    <span style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 10px;">▼</span>
+                                </div>
+                                <div id="hourDropdown${sectionId}" style="display: none; position: absolute; top: 100%; left: 0; background: white; border: 2px solid #d1d5db; border-radius: 6px; margin-top: 2px; width: 60px; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto;">
+                                    <div id="hourOptions${sectionId}">
+                                        <div class="hour-option" data-value="07" onclick="selectHour('${sectionId}', '07')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px; white-space: nowrap;">07 <span style="color: #9ca3af; font-size: 11px;">(A)</span></div>
+                                        <div class="hour-option" data-value="08" onclick="selectHour('${sectionId}', '08')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px; white-space: nowrap;">08 <span style="color: #9ca3af; font-size: 11px;">(S)</span></div>
+                                        <div class="hour-option" data-value="09" onclick="selectHour('${sectionId}', '09')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px; white-space: nowrap;">09 <span style="color: #9ca3af; font-size: 11px;">(D)</span></div>
+                                        <div class="hour-option" data-value="10" onclick="selectHour('${sectionId}', '10')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">10</div>
+                                        <div class="hour-option" data-value="11" onclick="selectHour('${sectionId}', '11')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">11</div>
+                                        <div class="hour-option" data-value="12" onclick="selectHour('${sectionId}', '12')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">12</div>
+                                        <div class="hour-option" data-value="13" onclick="selectHour('${sectionId}', '13')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">13</div>
+                                        <div class="hour-option" data-value="14" onclick="selectHour('${sectionId}', '14')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">14</div>
+                                        <div class="hour-option" data-value="15" onclick="selectHour('${sectionId}', '15')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">15</div>
+                                        <div class="hour-option" data-value="16" onclick="selectHour('${sectionId}', '16')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">16</div>
+                                        <div class="hour-option" data-value="17" onclick="selectHour('${sectionId}', '17')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">17</div>
+                                        <div class="hour-option" data-value="18" onclick="selectHour('${sectionId}', '18')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">18</div>
+                                        <div class="hour-option" data-value="19" onclick="selectHour('${sectionId}', '19')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">19</div>
+                                        <div class="hour-option" data-value="20" onclick="selectHour('${sectionId}', '20')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">20</div>
+                                        <div class="hour-option" data-value="21" onclick="selectHour('${sectionId}', '21')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">21</div>
+                                        <div class="hour-option" data-value="22" onclick="selectHour('${sectionId}', '22')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">22</div>
+                                        <div class="hour-option" data-value="23" onclick="selectHour('${sectionId}', '23')" style="padding: 6px 8px; cursor: pointer; text-align: center; font-size: 14px;">23</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="position: relative; display: inline-block;">
+                                <div id="minuteDisplay${sectionId}" style="display: inline-block; padding: 8px 20px 8px 8px; border: 2px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; width: 60px; height: 38px; box-sizing: border-box; position: relative; text-align: center; line-height: 22px; font-size: 14px;" onclick="toggleMinuteDropdown('${sectionId}')">
+                                    <span id="minuteValue${sectionId}">00</span>
+                                    <span style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 10px;">▼</span>
+                                </div>
+                                <div id="minuteDropdown${sectionId}" style="display: none; position: absolute; top: 100%; left: 0; background: white; border: 2px solid #d1d5db; border-radius: 6px; margin-top: 2px; width: 60px; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                    <!-- Fixed toggle button at TOP with sticky -->
+                                    <div style="position: sticky; top: 0; background: white; border-bottom: 2px solid #d1d5db; z-index: 10;">
+                                        <div id="minuteToggle${sectionId}" onclick="toggleMinuteMode('${sectionId}')" style="padding: 5px 2px; cursor: pointer; font-weight: 600; color: #3b82f6; text-align: center; font-size: 10px; white-space: nowrap;">▼ Chi tiết</div>
+                                    </div>
+                                    <!-- Scrollable options area -->
+                                    <div id="minuteOptionsScroll${sectionId}" style="max-height: 150px; overflow-y: auto;">
+                                        <div id="minuteOptions${sectionId}">
+                                            <div class="minute-option" data-value="00" onclick="selectMinute('${sectionId}', '00')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">
+                                                00 <span style="color: #9ca3af; font-size: 11px;">(Q)</span>
+                                            </div>
+                                            <div class="minute-option" data-value="15" onclick="selectMinute('${sectionId}', '15')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">
+                                                15 <span style="color: #9ca3af; font-size: 11px;">(W)</span>
+                                            </div>
+                                            <div class="minute-option" data-value="30" onclick="selectMinute('${sectionId}', '30')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">
+                                                30 <span style="color: #9ca3af; font-size: 11px;">(E)</span>
+                                            </div>
+                                            <div class="minute-option" data-value="45" onclick="selectMinute('${sectionId}', '45')" style="padding: 6px 8px; cursor: pointer; text-align: center; font-size: 14px;">
+                                                45 <span style="color: #9ca3af; font-size: 11px;">(R)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <button class="btn btn-primary" onclick="addShowtime('${sectionName}')">Thêm</button>
                         </div>
                         <div class="showtimes-list" id="showtimesList${sectionId}"></div>
@@ -1186,18 +1415,131 @@
                 `;
                 container.appendChild(section);
                 
-                // Populate hour select
-                const hourSelect = document.getElementById(`hourSelect${sectionId}`);
-                for (let i = 7; i <= 23; i++) {
-                    const option = document.createElement('option');
-                    option.value = i.toString().padStart(2, '0');
-                    option.textContent = i.toString().padStart(2, '0');
-                    hourSelect.appendChild(option);
-                }
+                // Store current hour and minute values
+                const hourDisplay = document.getElementById(`hourDisplay${sectionId}`);
+                hourDisplay.dataset.currentValue = '07';
+                
+                const minuteDisplay = document.getElementById(`minuteDisplay${sectionId}`);
+                minuteDisplay.dataset.currentValue = '00';
+                minuteDisplay.dataset.mode = 'quick';
                 
                 // Render existing showtimes
                 renderShowtimes(sectionName);
             });
+        }
+        
+        // Toggle minute dropdown visibility
+        // Toggle hour dropdown
+        window.toggleHourDropdown = function(sectionId) {
+            const dropdown = document.getElementById(`hourDropdown${sectionId}`);
+            
+            // Close all other hour dropdowns
+            document.querySelectorAll('[id^="hourDropdown"]').forEach(d => {
+                if (d.id !== `hourDropdown${sectionId}`) {
+                    d.style.display = 'none';
+                    d.dataset.open = 'false';
+                }
+            });
+            
+            // Close all minute dropdowns
+            document.querySelectorAll('[id^="minuteDropdown"]').forEach(d => {
+                d.style.display = 'none';
+                d.dataset.open = 'false';
+            });
+            
+            const isOpen = dropdown.style.display === 'block';
+            dropdown.style.display = isOpen ? 'none' : 'block';
+            dropdown.dataset.open = isOpen ? 'false' : 'true';
+            dropdown.dataset.sectionId = sectionId;
+        };
+        
+        // Select an hour value
+        window.selectHour = function(sectionId, value, keepOpen = false) {
+            const display = document.getElementById(`hourDisplay${sectionId}`);
+            const valueSpan = document.getElementById(`hourValue${sectionId}`);
+            const dropdown = document.getElementById(`hourDropdown${sectionId}`);
+            
+            valueSpan.textContent = value;
+            display.dataset.currentValue = value;
+            
+            if (!keepOpen) {
+                dropdown.style.display = 'none';
+                dropdown.dataset.open = 'false';
+            }
+        };
+        
+        window.toggleMinuteDropdown = function(sectionId) {
+            const dropdown = document.getElementById(`minuteDropdown${sectionId}`);
+            
+            // Close all other dropdowns first
+            document.querySelectorAll('[id^="minuteDropdown"]').forEach(d => {
+                if (d.id !== `minuteDropdown${sectionId}`) {
+                    d.style.display = 'none';
+                    d.dataset.open = 'false';
+                }
+            });
+            
+            const isOpen = dropdown.style.display === 'block';
+            dropdown.style.display = isOpen ? 'none' : 'block';
+            dropdown.dataset.open = isOpen ? 'false' : 'true';
+            dropdown.dataset.sectionId = sectionId; // Store sectionId for keyboard access
+        };
+        
+        // Select a minute value
+        window.selectMinute = function(sectionId, value, keepOpen = false) {
+            const display = document.getElementById(`minuteDisplay${sectionId}`);
+            const valueSpan = document.getElementById(`minuteValue${sectionId}`);
+            const dropdown = document.getElementById(`minuteDropdown${sectionId}`);
+            
+            valueSpan.textContent = value;
+            display.dataset.currentValue = value;
+            
+            if (!keepOpen) {
+                dropdown.style.display = 'none';
+                dropdown.dataset.open = 'false'; // Mark as closed
+            }
+        };
+        
+        // Toggle between quick and full mode
+        window.toggleMinuteMode = function(sectionId) {
+            const display = document.getElementById(`minuteDisplay${sectionId}`);
+            const optionsContainer = document.getElementById(`minuteOptions${sectionId}`);
+            const toggleButton = document.getElementById(`minuteToggle${sectionId}`);
+            const scrollContainer = document.getElementById(`minuteOptionsScroll${sectionId}`);
+            const currentMode = display.dataset.mode || 'quick';
+            
+            if (currentMode === 'quick') {
+                // Switch to full mode
+                let html = '';
+                
+                // All minutes 00-59
+                for (let i = 0; i <= 59; i++) {
+                    const val = i.toString().padStart(2, '0');
+                    html += '<div class="minute-option" data-value="' + val + '" onclick="selectMinute(\'' + sectionId + '\', \'' + val + '\')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">' + val + '</div>';
+                }
+                
+                optionsContainer.innerHTML = html;
+                toggleButton.innerHTML = '▲ Thu gọn';
+                toggleButton.style.fontSize = '10px';
+                toggleButton.style.whiteSpace = 'nowrap';
+                scrollContainer.style.maxHeight = '200px';
+                display.dataset.mode = 'full';
+                
+            } else {
+                // Switch to quick mode
+                let html = '';
+                html += '<div class="minute-option" data-value="00" onclick="selectMinute(\'' + sectionId + '\', \'00\')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">00</div>';
+                html += '<div class="minute-option" data-value="15" onclick="selectMinute(\'' + sectionId + '\', \'15\')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">15</div>';
+                html += '<div class="minute-option" data-value="30" onclick="selectMinute(\'' + sectionId + '\', \'30\')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">30</div>';
+                html += '<div class="minute-option" data-value="45" onclick="selectMinute(\'' + sectionId + '\', \'45\')" style="padding: 6px 8px; cursor: pointer; text-align: center; font-size: 14px;">45</div>';
+                
+                optionsContainer.innerHTML = html;
+                toggleButton.innerHTML = '▼ Chi tiết';
+                toggleButton.style.fontSize = '10px';
+                toggleButton.style.whiteSpace = 'nowrap';
+                scrollContainer.style.maxHeight = '150px';
+                display.dataset.mode = 'quick';
+            }
         }
         
         document.getElementById('movieFormat').addEventListener('change', updateShowtimeSections);
@@ -1285,6 +1627,39 @@
             reader.onload = function(e) {
                 try {
                     const imported = JSON.parse(e.target.result);
+                    
+                    // MIGRATE OLD DATA FORMAT
+                    Object.keys(imported).forEach(cinema => {
+                        if (imported[cinema]) {
+                            imported[cinema].forEach(movie => {
+                                if (movie.showtimes) {
+                                    const oldKeys = Object.keys(movie.showtimes);
+                                    const newShowtimes = {};
+                                    let migrated = false;
+                                    
+                                    oldKeys.forEach(key => {
+                                        // Check if key already has language
+                                        if (!key.includes('Phụ đề') && !key.includes('Lồng Tiếng')) {
+                                            // Old format - add default language
+                                            const newKey = key + ' Phụ đề';
+                                            newShowtimes[newKey] = movie.showtimes[key];
+                                            migrated = true;
+                                        } else {
+                                            // Already new format
+                                            newShowtimes[key] = movie.showtimes[key];
+                                        }
+                                    });
+                                    
+                                    if (migrated) {
+                                        movie.showtimes = newShowtimes;
+                                        if (!movie.language) movie.language = 'Phụ đề';
+                                        if (!movie.format) movie.format = '2D';
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    
                     moviesData = imported;
                     saveToHistory();
                     saveToLocalStorage();
@@ -1532,6 +1907,43 @@
                 if (!moviesData['GALAXY VINH']) moviesData['GALAXY VINH'] = [];
                 if (!moviesData['GALAXY CINE+ VINCOM PLAZA VINH']) moviesData['GALAXY CINE+ VINCOM PLAZA VINH'] = [];
                 
+                // MIGRATE OLD DATA FORMAT
+                Object.keys(moviesData).forEach(cinema => {
+                    moviesData[cinema].forEach(movie => {
+                        if (movie.showtimes) {
+                            const oldKeys = Object.keys(movie.showtimes);
+                            const newShowtimes = {};
+                            let migrated = false;
+                            
+                            oldKeys.forEach(key => {
+                                // Check if key already has language
+                                if (!key.includes('Phụ đề') && !key.includes('Lồng Tiếng')) {
+                                    // Old format - add default language
+                                    const newKey = key + ' Phụ đề';
+                                    newShowtimes[newKey] = movie.showtimes[key];
+                                    migrated = true;
+                                    console.log(`Migrated: "${key}" → "${newKey}"`);
+                                } else {
+                                    // Already new format
+                                    newShowtimes[key] = movie.showtimes[key];
+                                }
+                            });
+                            
+                            if (migrated) {
+                                movie.showtimes = newShowtimes;
+                                // Also set language if not set
+                                if (!movie.language) {
+                                    movie.language = 'Phụ đề';
+                                }
+                                // Set format if not set
+                                if (!movie.format) {
+                                    movie.format = '2D';
+                                }
+                            }
+                        }
+                    });
+                });
+                
                 console.log('✅ Loaded complete state:', completeState);
                 
                 // Update UI dropdowns
@@ -1581,8 +1993,11 @@
 
         function addShowtime(format) {
             const sectionId = format.replace(/\s+/g, '');
-            const hour = document.getElementById('hourSelect' + sectionId).value;
-            const minute = document.getElementById('minuteSelect' + sectionId).value;
+            const hourDisplay = document.getElementById('hourDisplay' + sectionId);
+            const hour = hourDisplay.dataset.currentValue;
+            const minuteDisplay = document.getElementById('minuteDisplay' + sectionId);
+            const minute = minuteDisplay.dataset.currentValue;
+            
             const time = `${hour}:${minute}`;
             
             if (!currentShowtimes[format]) {
@@ -1745,8 +2160,8 @@
 
             editingMovieId = id;
             document.getElementById('movieTitle').value = movie.title;
-            document.getElementById('movieFormat').value = movie.format || '';
-            document.getElementById('movieLanguage').value = movie.language || '';
+            document.getElementById('movieFormat').value = movie.format || '2D';
+            document.getElementById('movieLanguage').value = movie.language || 'Phụ đề';
             document.getElementById('sneakShow').checked = movie.sneakShow || false;
             document.getElementById('ageRating').value = movie.ageRating;
             
@@ -1838,26 +2253,84 @@
                 console.log('Rendering movie card:', movie.title);
                 console.log('  movie.showtimes:', movie.showtimes);
                 
-                // Collect all showtimes dynamically
-                const allShowtimes = [];
-                Object.keys(movie.showtimes || {}).forEach(format => {
-                    if (movie.showtimes[format] && movie.showtimes[format].length > 0) {
-                        movie.showtimes[format].forEach(time => {
-                            allShowtimes.push(`${time} (${format})`);
-                        });
+                // Group showtimes by language then format
+                const showtimesByLanguage = {};
+                Object.keys(movie.showtimes || {}).forEach(sectionKey => {
+                    if (movie.showtimes[sectionKey] && movie.showtimes[sectionKey].length > 0) {
+                        // Parse section key (e.g., "2D Phụ đề", "3D Lồng Tiếng")
+                        const times = movie.showtimes[sectionKey];
+                        
+                        let language = '';
+                        let format = sectionKey;
+                        
+                        if (sectionKey.includes('Phụ đề')) {
+                            language = 'Phụ đề';
+                            format = sectionKey.replace(' Phụ đề', '').replace('Phụ đề', '').trim();
+                        } else if (sectionKey.includes('Lồng Tiếng')) {
+                            language = 'Lồng Tiếng';
+                            format = sectionKey.replace(' Lồng Tiếng', '').replace('Lồng Tiếng', '').trim();
+                        }
+                        
+                        // Skip if no language detected
+                        if (!language) return;
+                        
+                        if (!showtimesByLanguage[language]) {
+                            showtimesByLanguage[language] = {};
+                        }
+                        
+                        if (!showtimesByLanguage[language][format]) {
+                            showtimesByLanguage[language][format] = [];
+                        }
+                        
+                        showtimesByLanguage[language][format].push(...times);
                     }
                 });
                 
-                console.log('  allShowtimes:', allShowtimes);
+                console.log('  showtimesByLanguage:', showtimesByLanguage);
                 
-                const showtimesHTML = allShowtimes.length > 0 
-                    ? allShowtimes.map(t => `<span class="showtime-tag">${t}</span>`).join('')
-                    : '<span style="color: #ef4444; font-style: italic;">Chưa có giờ chiếu</span>';
+                // Build HTML - format: Ngôn ngữ Format: time
+                let showtimesHTML = '';
+                
+                if (Object.keys(showtimesByLanguage).length === 0) {
+                    showtimesHTML = '<span style="color: #ef4444; font-style: italic;">Chưa có giờ chiếu</span>';
+                } else {
+                    const languageGroups = [];
+                    
+                    Object.keys(showtimesByLanguage).forEach(language => {
+                        const formats = showtimesByLanguage[language];
+                        let groupHTML = '';
+                        
+                        // Get all format keys
+                        const formatKeys = Object.keys(formats);
+                        
+                        formatKeys.forEach((format, idx) => {
+                            const times = formats[format].sort();
+                            
+                            if (idx === 0) {
+                                // First line: Ngôn ngữ Format: time
+                                groupHTML += `<div style="margin-bottom: 3px;">`;
+                                groupHTML += `<span style="background: #fbbf24; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 600; margin-right: 4px;">${language}</span>`;
+                                groupHTML += `<strong>${format}:</strong> ${times.join(', ')}`;
+                                groupHTML += `</div>`;
+                            } else {
+                                // Subsequent lines: aligned under first format
+                                const spacerWidth = 80; // Approximate width for language badge
+                                groupHTML += `<div style="margin-bottom: 3px; padding-left: ${spacerWidth}px;">`;
+                                groupHTML += `<strong>${format}:</strong> ${times.join(', ')}`;
+                                groupHTML += `</div>`;
+                            }
+                        });
+                        
+                        languageGroups.push(groupHTML);
+                    });
+                    
+                    showtimesHTML = languageGroups.join('<div style="margin: 6px 0;"></div>');
+                }
 
                 card.innerHTML = `
                     <div class="movie-card-header">
                         <div style="flex: 1;">
-                            <h3><span class="age-badge age-${movie.ageRating}">${movie.ageRating}</span> ${movie.title}${movie.subtitle ? ' (' + movie.subtitle + ')' : ''}</h3>
+                            <h3><span class="age-badge age-${movie.ageRating}">${movie.ageRating}</span> ${movie.title}</h3>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <input type="number" class="order-input" value="${index + 1}" min="1" max="${movies.length}" 
@@ -2050,13 +2523,9 @@
                 ctx.font = 'bold 22px Arial';
                 
                 let fullTitle = movie.title;
-                let infoParts = [];
-                if (movie.format) infoParts.push(movie.format);
-                if (movie.language) infoParts.push(movie.language);
-                if (movie.sneakShow) infoParts.push('SneakShow');
-                
-                if (infoParts.length > 0) {
-                    fullTitle += ' (' + infoParts.join(', ') + ')';
+                // Chỉ thêm Sneak Show vào title
+                if (movie.sneakShow) {
+                    fullTitle += ' (Sneak Show)';
                 }
                 
                 const maxTextWidth = canvasWidth - movieLeftMargin - 30;
@@ -2270,13 +2739,9 @@
                 ctx.textAlign = 'left';
                 
                 let fullTitle = movie.title;
-                let infoParts = [];
-                if (movie.format) infoParts.push(movie.format);
-                if (movie.language) infoParts.push(movie.language);
-                if (movie.sneakShow) infoParts.push('SneakShow');
-                
-                if (infoParts.length > 0) {
-                    fullTitle += ' (' + infoParts.join(', ') + ')';
+                // Chỉ thêm Sneak Show vào title
+                if (movie.sneakShow) {
+                    fullTitle += ' (Sneak Show)';
                 }
                 
                 const maxTextWidth = canvasWidth - movieLeftMargin - 30;
@@ -2286,7 +2751,7 @@
                 
                 titleLines.forEach((line, lineIndex) => {
                     const parenIndex = line.indexOf('(');
-                    if (parenIndex !== -1) {
+                    if (parenIndex !== -1 && movie.sneakShow) {
                         const beforeParen = line.substring(0, parenIndex);
                         const afterParen = line.substring(parenIndex);
                         
@@ -2297,11 +2762,7 @@
                         ctx.fillStyle = '#fbbf24';
                         ctx.fillText(afterParen, movieLeftMargin + beforeWidth, textY);
                     } else {
-                        if (lineIndex > 0 && fullTitle.indexOf('(') !== -1) {
-                            ctx.fillStyle = '#fbbf24';
-                        } else {
-                            ctx.fillStyle = '#ffffff';
-                        }
+                        ctx.fillStyle = '#ffffff';
                         ctx.fillText(line, movieLeftMargin, textY);
                     }
                     textY += titleLineHeight;
@@ -2309,66 +2770,99 @@
                 
                 textY += 10;
                 
-                // Draw showtimes
-                const showtimeKeys = Object.keys(movie.showtimes).filter(key => 
-                    movie.showtimes[key] && movie.showtimes[key].length > 0
-                );
+                // Draw showtimes - group by language
+                const showtimesByLanguage = {};
+                Object.keys(movie.showtimes).forEach(sectionKey => {
+                    if (movie.showtimes[sectionKey] && movie.showtimes[sectionKey].length > 0) {
+                        const times = movie.showtimes[sectionKey];
+                        
+                        let language = '';
+                        let format = sectionKey;
+                        
+                        if (sectionKey.includes('Phụ đề')) {
+                            language = 'Phụ đề';
+                            format = sectionKey.replace(' Phụ đề', '').replace('Phụ đề', '').trim();
+                        } else if (sectionKey.includes('Lồng Tiếng')) {
+                            language = 'Lồng Tiếng';
+                            format = sectionKey.replace(' Lồng Tiếng', '').replace('Lồng Tiếng', '').trim();
+                        }
+                        
+                        if (!language) return;
+                        
+                        if (!showtimesByLanguage[language]) {
+                            showtimesByLanguage[language] = {};
+                        }
+                        
+                        if (!showtimesByLanguage[language][format]) {
+                            showtimesByLanguage[language][format] = [];
+                        }
+                        
+                        showtimesByLanguage[language][format].push(...times);
+                    }
+                });
                 
                 ctx.fillStyle = '#ffffff';
                 
-                if (showtimeKeys.length === 1) {
-                    // Single format - no label
-                    ctx.font = 'bold 20px Arial';
-                    const times = movie.showtimes[showtimeKeys[0]];
-                    const lines = wrapShowtimes(ctx, times, movieLeftMargin, 780, showtimeSpacing);
+                // Calculate max language width for alignment
+                ctx.font = 'bold 16px Arial';
+                const maxLangWidth = Math.max(
+                    ctx.measureText('Phụ đề ').width,
+                    ctx.measureText('Lồng Tiếng ').width
+                );
+                
+                // Render each language group
+                Object.keys(showtimesByLanguage).forEach(language => {
+                    const formats = showtimesByLanguage[language];
+                    const formatKeys = Object.keys(formats);
                     
-                    lines.forEach((line) => {
-                        let stX = movieLeftMargin;
-                        line.forEach(time => {
-                            ctx.fillText(time, stX, textY);
-                            stX += ctx.measureText(time).width + showtimeSpacing;
-                        });
-                        textY += showtimeLineHeight;
-                    });
-                } else if (showtimeKeys.length > 1) {
-                    // Multiple formats - labels căn trái, dấu : thẳng hàng
-                    // Tìm label dài nhất (không tính dấu :)
-                    ctx.font = 'bold 18px Arial';
-                    let maxLabelWidth = 0;
-                    showtimeKeys.forEach(key => {
-                        const w = ctx.measureText(key).width; // Không có dấu :
-                        if (w > maxLabelWidth) maxLabelWidth = w;
-                    });
-                    
-                    const colonX = movieLeftMargin + maxLabelWidth + 5; // Vị trí dấu : cố định
-                    const showtimeStartX = colonX + ctx.measureText(':').width + 10; // Giờ chiếu sau dấu :
-                    
-                    showtimeKeys.forEach(key => {
-                        // Draw label text (căn trái từ movieLeftMargin)
-                        ctx.font = 'bold 18px Arial';
-                        ctx.textAlign = 'left';
-                        ctx.fillText(key, movieLeftMargin, textY);
+                    formatKeys.forEach((format, idx) => {
+                        const times = formats[format].sort();
                         
-                        // Draw dấu : ở vị trí cố định
-                        ctx.fillText(':', colonX, textY);
-                        
-                        // Draw showtimes sau dấu :
-                        ctx.font = 'bold 20px Arial';
-                        const times = movie.showtimes[key];
-                        const lines = wrapShowtimes(ctx, times, showtimeStartX, 780, showtimeSpacing);
-                        
-                        lines.forEach((line, lineIndex) => {
-                            let stX = lineIndex === 0 ? showtimeStartX : movieLeftMargin;
-                            line.forEach(time => {
+                        if (idx === 0) {
+                            // First line: Ngôn ngữ Format: time
+                            // Draw language badge with fixed width
+                            ctx.fillStyle = '#fbbf24';
+                            ctx.font = 'bold 16px Arial';
+                            ctx.fillText(language, movieLeftMargin, textY);
+                            
+                            // Draw format + colon at fixed position
+                            ctx.fillStyle = '#ffffff';
+                            ctx.font = 'bold 18px Arial';
+                            const formatText = format + ': ';
+                            const formatX = movieLeftMargin + maxLangWidth;
+                            ctx.fillText(formatText, formatX, textY);
+                            
+                            // Draw times
+                            ctx.font = 'bold 20px Arial';
+                            let stX = formatX + ctx.measureText(formatText).width;
+                            times.forEach((time, timeIdx) => {
                                 ctx.fillText(time, stX, textY);
-                                stX += ctx.measureText(time).width + showtimeSpacing;
+                                stX += ctx.measureText(time).width + (timeIdx < times.length - 1 ? 25 : 0);
                             });
+                            
+                        } else {
+                            // Subsequent lines: align format at same position
                             textY += showtimeLineHeight;
-                        });
-                        
-                        textY += 5;
+                            
+                            // Draw format + colon at fixed position (aligned with first line)
+                            ctx.fillStyle = '#ffffff';
+                            ctx.font = 'bold 18px Arial';
+                            const formatText = format + ': ';
+                            const formatX = movieLeftMargin + maxLangWidth;
+                            ctx.fillText(formatText, formatX, textY);
+                            
+                            // Draw times
+                            ctx.font = 'bold 20px Arial';
+                            let stX = formatX + ctx.measureText(formatText).width;
+                            times.forEach((time, timeIdx) => {
+                                ctx.fillText(time, stX, textY);
+                                stX += ctx.measureText(time).width + (timeIdx < times.length - 1 ? 25 : 0);
+                            });
+                        }
                     });
-                }
+                    
+                    textY += showtimeLineHeight + 5; // Space between language groups
+                });
                 
                 // Calculate line position - badge đến line = 20px
                 const contentHeight = Math.max(posterHeight, textY - posterY);
