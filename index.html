@@ -2771,6 +2771,31 @@
                 textY += 10;
                 
                 // Draw showtimes - group by language
+                
+                // Helper function to wrap showtimes text
+                function wrapShowtimes(ctx, times, startX, startY, maxWidth, lineHeight) {
+                    let currentX = startX;
+                    let currentY = startY;
+                    const spacing = 25;
+                    
+                    times.forEach((time, timeIdx) => {
+                        const timeWidth = ctx.measureText(time).width;
+                        const needSpace = timeIdx < times.length - 1 ? spacing : 0;
+                        
+                        // Check if this time would overflow
+                        if (currentX + timeWidth > maxWidth && currentX > startX) {
+                            // Wrap to next line
+                            currentY += lineHeight;
+                            currentX = startX;
+                        }
+                        
+                        ctx.fillText(time, currentX, currentY);
+                        currentX += timeWidth + needSpace;
+                    });
+                    
+                    return currentY; // Return final Y position
+                }
+                
                 const showtimesByLanguage = {};
                 Object.keys(movie.showtimes).forEach(sectionKey => {
                     if (movie.showtimes[sectionKey] && movie.showtimes[sectionKey].length > 0) {
@@ -2832,13 +2857,11 @@
                             const formatX = movieLeftMargin + maxLangWidth;
                             ctx.fillText(formatText, formatX, textY);
                             
-                            // Draw times
+                            // Draw times with wrapping
                             ctx.font = 'bold 20px Arial';
-                            let stX = formatX + ctx.measureText(formatText).width;
-                            times.forEach((time, timeIdx) => {
-                                ctx.fillText(time, stX, textY);
-                                stX += ctx.measureText(time).width + (timeIdx < times.length - 1 ? 25 : 0);
-                            });
+                            const timesStartX = formatX + ctx.measureText(formatText).width;
+                            const maxX = 780 - 20; // Canvas width - right margin
+                            textY = wrapShowtimes(ctx, times, timesStartX, textY, maxX, showtimeLineHeight);
                             
                         } else {
                             // Subsequent lines: align format at same position
@@ -2851,13 +2874,11 @@
                             const formatX = movieLeftMargin + maxLangWidth;
                             ctx.fillText(formatText, formatX, textY);
                             
-                            // Draw times
+                            // Draw times with wrapping
                             ctx.font = 'bold 20px Arial';
-                            let stX = formatX + ctx.measureText(formatText).width;
-                            times.forEach((time, timeIdx) => {
-                                ctx.fillText(time, stX, textY);
-                                stX += ctx.measureText(time).width + (timeIdx < times.length - 1 ? 25 : 0);
-                            });
+                            const timesStartX = formatX + ctx.measureText(formatText).width;
+                            const maxX = 780 - 20;
+                            textY = wrapShowtimes(ctx, times, timesStartX, textY, maxX, showtimeLineHeight);
                         }
                     });
                     
