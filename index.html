@@ -327,6 +327,12 @@
             border-color: #1e7e34 !important;
             box-shadow: 0 4px 14px rgba(40, 167, 69, 0.5) !important;
         }
+        /* ✅ FIX: Highlight toàn bộ card sau khi bấm Lưu phim */
+        .saved-movie {
+            background-color: #ffe066 !important;
+            border-left: 8px solid #ffcc00 !important;
+            box-shadow: 0 0 10px rgba(255, 204, 0, 0.6) !important;
+        }
         .movie-card-header {
             display: flex;
             justify-content: space-between;
@@ -700,6 +706,69 @@
         .minute-option:hover, .hour-option:hover {
             background: #e5e7eb;
         }
+
+        /* ==================== MOVIE CACHE AUTOCOMPLETE ==================== */
+        .movie-title-wrapper {
+            position: relative;
+        }
+        .autocomplete-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #3b82f6;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            z-index: 5000;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        .autocomplete-dropdown.show {
+            display: block;
+        }
+        .autocomplete-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6;
+            transition: background 0.15s;
+        }
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        .autocomplete-item:hover {
+            background: #eff6ff;
+        }
+        .autocomplete-item img {
+            width: 32px;
+            height: 45px;
+            object-fit: cover;
+            border-radius: 3px;
+            border: 1px solid #e5e7eb;
+            flex-shrink: 0;
+        }
+        .autocomplete-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .autocomplete-item-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: #1f2937;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .autocomplete-item-meta {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
     </style>
 </head>
 <body>
@@ -787,7 +856,10 @@
 
                 <div class="form-group">
                     <label>Tên phim:</label>
-                    <input type="text" id="movieTitle" placeholder="Nhập tên phim...">
+                    <div class="movie-title-wrapper">
+                        <input type="text" id="movieTitle" placeholder="Nhập tên phim..." autocomplete="off">
+                        <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -933,6 +1005,7 @@
             yearSelect.addEventListener('change', updateSelectedDate);
         }
         
+        // ✅ FIX: Reset saved khi đổi ngày
         function updateSelectedDate() {
             const day = document.getElementById('dateDay').value;
             const month = document.getElementById('dateMonth').value;
@@ -940,6 +1013,14 @@
             
             selectedDate = `${year}-${month}-${day}`;
             document.getElementById('hiddenDateInput').value = selectedDate;
+
+            // Reset trạng thái saved của tất cả phim khi đổi ngày
+            Object.keys(moviesData).forEach(cinema => {
+                (moviesData[cinema] || []).forEach(movie => { movie.saved = false; });
+            });
+
+            // ✅ Re-render cards để UI cập nhật highlight
+            renderMoviesList(moviesData[currentCinema] || []);
             generatePreview(moviesData[currentCinema] || []);
         }
         
@@ -991,7 +1072,7 @@
                     currentShowtimes[currentResetFormat] = [];
                     renderShowtimes(currentResetFormat);
                 }
-                syncPreview(); // ✅ FIX: update canvas after reset
+                syncPreview();
             }
             closeCustomConfirm();
         }
@@ -1456,9 +1537,6 @@
         }
 
 
-
-
-
         // ==================== FIREBASE CLOUD STORAGE ====================
         
         const firebaseConfig = {
@@ -1478,7 +1556,7 @@
                 firebase.initializeApp(firebaseConfig);
                 database = firebase.database();
                 console.log('✅ Firebase initialized');
-                loadLatestFromCloud(); // ✅ auto-load: dùng lại đúng hàm của button
+                loadLatestFromCloud();
             } else {
                 console.error('❌ Firebase SDK not loaded');
                 setTimeout(initFirebase, 100);
@@ -1491,7 +1569,6 @@
             initFirebase();
         }
         
-        // ✅ AUTO-LOAD: tìm ngày mới nhất trong schedules/ rồi load
         async function autoLoadFromCloud() {
             try {
                 if (editingMovieId) {
@@ -1502,19 +1579,16 @@
                 let data = null;
                 let sourceLabel = '';
 
-                // Lấy tất cả keys trong schedules/, chỉ shallow (không load toàn bộ data)
                 const keysSnap = await database.ref('schedules').once('shallow');
-                const keys = keysSnap.val(); // { "2025-01-10": true, ... } hoặc null
+                const keys = keysSnap.val();
 
                 if (keys) {
-                    // Sort ascending → pop() lấy ngày mới nhất
                     const latestDate = Object.keys(keys).sort().pop();
                     const snap = await database.ref('schedules/' + latestDate).once('value');
                     data = snap.val();
                     if (data) sourceLabel = '📅 schedules/' + latestDate;
                 }
 
-                // Fallback: latest-data (backwards compat với data cũ)
                 if (!data) {
                     const snap = await database.ref('latest-data').once('value');
                     data = snap.val();
@@ -1555,10 +1629,8 @@
             }
         }
         
-        // ✅ Sync date dropdown: pick the later of (today) vs (loaded selectedDate)
         function syncDateToLatest() {
             const todayStr = new Date().toISOString().split('T')[0];
-            // Use today if it's newer than whatever selectedDate currently is
             const targetDate = todayStr > selectedDate ? todayStr : selectedDate;
             const [y, m, d] = targetDate.split('-');
             const dayEl   = document.getElementById('dateDay');
@@ -1567,7 +1639,6 @@
             if (dayEl)  dayEl.value  = d;
             if (monEl)  monEl.value  = m;
             if (yearEl) yearEl.value = y;
-            // Update selectedDate and hidden input without triggering full re-render
             selectedDate = targetDate;
             const hidden = document.getElementById('hiddenDateInput');
             if (hidden) hidden.value = targetDate;
@@ -1581,9 +1652,13 @@
                 const data = snapshot.val();
                 if (!data) { showToast('❌ Chưa có data đã lưu!', 'error'); return; }
                 moviesData = data;
+                // ✅ Reset saved sau khi load từ Firebase
+                Object.keys(moviesData).forEach(cinema => {
+                    (moviesData[cinema] || []).forEach(movie => { movie.saved = false; });
+                });
                 saveToHistory();
                 saveToLocalStorage();
-                syncDateToLatest(); // ✅ sync date dropdown
+                syncDateToLatest();
                 loadData();
                 showToast('✅ Đã tải data đã lưu thành công!', 'success');
                 console.log('✅ Loaded latest data from Firebase');
@@ -1607,7 +1682,6 @@
             }
         }
 
-        // ✅ Auto-save sau download — không confirm, không toast làm phiền
         async function silentSaveToCloud() {
             if (!database) return;
             try {
@@ -1618,8 +1692,6 @@
                 console.error('❌ Auto-save failed:', e.message);
             }
         }
-
-
 
         function saveToLocalStorage() {
             // Do nothing - only save on download
@@ -1692,30 +1764,13 @@
             generatePreview(data);
         }
 
-        document.getElementById('posterInput').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    currentPosterData = event.target.result;
-                    document.getElementById('posterPreview').src = currentPosterData;
-                    document.getElementById('posterPreview').style.display = 'block';
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        // ─── BUG FIX: sync giờ chiếu → canvas ngay khi thêm/xóa ───
-        // Vấn đề: addShowtime/removeShowtime chỉ cập nhật currentShowtimes (biến tạm).
-        // Canvas đọc từ moviesData nên không thấy thay đổi cho đến khi "Lưu phim".
-        // Fix: syncPreview() copy currentShowtimes vào moviesData rồi gọi generatePreview().
         function syncPreview() {
             if (!editingMovieId) return;
             const idx = (moviesData[currentCinema] || []).findIndex(m => m.id === editingMovieId);
             if (idx !== -1) {
                 moviesData[currentCinema][idx].showtimes = JSON.parse(JSON.stringify(currentShowtimes));
                 moviesData[currentCinema][idx].edited = true;
-                renderMoviesList(moviesData[currentCinema]); // ✅ re-render cards → applies edited-movie class
+                renderMoviesList(moviesData[currentCinema]);
                 generatePreview(moviesData[currentCinema]);
                 if (database) {
                     database.ref('latest-data').set(moviesData).catch(e => {
@@ -1739,14 +1794,14 @@
                 currentShowtimes[format].push(time);
                 currentShowtimes[format].sort();
                 renderShowtimes(format);
-                syncPreview(); // ✅ FIX
+                syncPreview();
             }
         }
 
         function removeShowtime(format, time) {
             currentShowtimes[format] = currentShowtimes[format].filter(t => t !== time);
             renderShowtimes(format);
-            syncPreview(); // ✅ FIX
+            syncPreview();
         }
 
         function renderShowtimes(format) {
@@ -1775,16 +1830,8 @@
             const ageRating = document.getElementById('ageRating').value;
             const sneakShow = document.getElementById('sneakShow').checked;
 
-            console.log('=== SAVE MOVIE DEBUG ===');
-            console.log('Title:', title);
-            console.log('Format:', format);
-            console.log('Language:', language);
-            console.log('Poster:', currentPosterData ? 'OK' : 'MISSING');
-            console.log('currentShowtimes:', currentShowtimes);
-
             if (!title || !currentPosterData) {
                 alert('Vui lòng điền đầy đủ thông tin!');
-                console.error('❌ Missing title or poster');
                 return;
             }
 
@@ -1792,11 +1839,8 @@
                 currentShowtimes[key] && currentShowtimes[key].length > 0
             );
             
-            console.log('hasShowtimes:', hasShowtimes);
-            
             if (!hasShowtimes) {
                 alert('Vui lòng thêm ít nhất một giờ chiếu!');
-                console.error('❌ No showtimes found');
                 return;
             }
 
@@ -1809,6 +1853,7 @@
 
             const currentDateForMovie = new Date().toISOString().split('T')[0];
 
+            // ✅ FIX: Gán saved = true khi bấm Lưu phim
             const movie = {
                 id: editingMovieId || Date.now(),
                 title,
@@ -1819,10 +1864,9 @@
                 ageRating,
                 poster: currentPosterData,
                 dateCreated: currentDateForMovie,
-                showtimes: JSON.parse(JSON.stringify(currentShowtimes))
+                showtimes: JSON.parse(JSON.stringify(currentShowtimes)),
+                saved: true
             };
-
-            console.log('Movie object created:', movie);
 
             if (!moviesData[currentCinema]) {
                 moviesData[currentCinema] = [];
@@ -1832,18 +1876,17 @@
                 const index = moviesData[currentCinema].findIndex(m => m.id === editingMovieId);
                 if (index !== -1) {
                     moviesData[currentCinema][index] = movie;
-                    console.log('✅ Updated movie at index:', index);
                 }
             } else {
                 moviesData[currentCinema].push(movie);
-                console.log('✅ Added new movie, total:', moviesData[currentCinema].length);
             }
 
             saveToHistory();
             saveToLocalStorage();
+            // ✅ Lưu vào cache để autocomplete lần sau
+            saveMovieToCache(title, currentPosterData, ageRating, format, language);
             resetForm();
             loadData();
-            console.log('=== SAVE COMPLETE ===');
             
             const notification = document.getElementById('saveNotification');
             notification.classList.remove('hiding');
@@ -1873,9 +1916,6 @@
             const movie = moviesData[currentCinema].find(m => m.id === id);
             if (!movie) return;
 
-            console.log('=== EDIT MOVIE ===');
-            console.log('Movie showtimes:', movie.showtimes);
-
             editingMovieId = id;
             document.getElementById('movieTitle').value = movie.title;
             document.getElementById('movieFormat').value = movie.format || '2D';
@@ -1888,10 +1928,8 @@
             document.getElementById('posterPreview').style.display = 'block';
 
             currentShowtimes = JSON.parse(JSON.stringify(movie.showtimes || {}));
-            console.log('Loaded currentShowtimes:', currentShowtimes);
             
             updateShowtimeSections();
-            console.log('After updateShowtimeSections, currentShowtimes:', currentShowtimes);
 
             document.querySelector('.left-panel').scrollTop = 0;
         }
@@ -1950,11 +1988,11 @@
             container.innerHTML = '';
             movies.forEach((movie, index) => {
                 const card = document.createElement('div');
-                card.className = 'movie-card' + (movie.edited ? ' edited-movie' : '');
+                // ✅ FIX: Thêm class saved-movie vào outermost container khi movie.saved = true
+                card.className = 'movie-card' +
+                    (movie.edited ? ' edited-movie' : '') +
+                    (movie.saved ? ' saved-movie' : '');
                 card.dataset.index = index;
-                
-                console.log('Rendering movie card:', movie.title);
-                console.log('  movie.showtimes:', movie.showtimes);
                 
                 const showtimesByLanguage = {};
                 Object.keys(movie.showtimes || {}).forEach(sectionKey => {
@@ -1975,8 +2013,6 @@
                         showtimesByLanguage[language][format].push(...times);
                     }
                 });
-                
-                console.log('  showtimesByLanguage:', showtimesByLanguage);
                 
                 let showtimesHTML = '';
                 if (Object.keys(showtimesByLanguage).length === 0) {
@@ -2205,7 +2241,6 @@
             ctx.fillStyle = cinemaConfig.backgroundColor;
             ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-            // Header box
             const headerBoxX = 155;
             const headerBoxY = 15;
             const headerBoxW = 490;
@@ -2247,7 +2282,6 @@
             ctx.closePath();
             ctx.fill();
             
-            // LED dots
             const dotRadius = 3;
             const dotMargin = headerBoxY + innerPadding / 2;
             const dotCountTop = 42;
@@ -2329,7 +2363,6 @@
                 ctx.textAlign = 'center';
                 ctx.fillText(movie.ageRating, badgeX, badgeY + 5);
 
-                // ✅ Edited indicator: small pill top-right of content area
                 if (movie.edited) {
                     const pillText = '✏ đã sửa';
                     ctx.font = 'bold 11px Arial';
@@ -2567,7 +2600,7 @@
                     await writable.write(blob);
                     await writable.close();
                     saveMovieDataOnDownload();
-                    await silentSaveToCloud(); // ✅ auto-save sau download
+                    await silentSaveToCloud();
                 } catch (err) {
                     if (err.name !== 'AbortError') {
                         console.error('Save failed:', err);
@@ -2579,7 +2612,7 @@
                 link.href = imageData;
                 link.click();
                 saveMovieDataOnDownload();
-                await silentSaveToCloud(); // ✅ auto-save sau download
+                await silentSaveToCloud();
             }
         }
         
@@ -2645,17 +2678,182 @@
             }, 3000);
         }
 
-        document.getElementById('cinemaSelect').addEventListener('change', loadData);
+        // ✅ FIX: Reset saved khi đổi rạp
+        document.getElementById('cinemaSelect').addEventListener('change', function() {
+            Object.keys(moviesData).forEach(cinema => {
+                (moviesData[cinema] || []).forEach(movie => { movie.saved = false; });
+            });
+            loadData();
+        });
+
+        // ==================== MOVIE CACHE SYSTEM ====================
+
+        const CACHE_KEY = 'movieCache';
+        const TEN_DAYS = 10 * 24 * 60 * 60 * 1000;
+
+        function loadMovieCache() {
+            try {
+                const raw = localStorage.getItem(CACHE_KEY);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveMovieCacheToStorage(cache) {
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+            } catch (e) {
+                console.warn('⚠️ Không thể lưu movie cache:', e);
+            }
+        }
+
+        function filterOldMovies(cache) {
+            const now = Date.now();
+            return cache.filter(m => m.lastUsed >= now - TEN_DAYS);
+        }
+
+        function saveMovieToCache(name, poster, rating, format, language) {
+            let cache = loadMovieCache();
+            cache = filterOldMovies(cache);
+            // Cập nhật nếu đã tồn tại (so sánh tên, không phân biệt hoa thường)
+            const existingIdx = cache.findIndex(m => m.name.toLowerCase() === name.toLowerCase());
+            const entry = { name, poster, rating, format, language: language || '', lastUsed: Date.now() };
+            if (existingIdx !== -1) {
+                cache[existingIdx] = entry;
+            } else {
+                cache.push(entry);
+            }
+            saveMovieCacheToStorage(cache);
+        }
+
+        function handleAutocomplete() {
+            const input = document.getElementById('movieTitle');
+            const dropdown = document.getElementById('autocompleteDropdown');
+            const query = input.value.trim();
+
+            // Chỉ gợi ý khi có ít nhất 1 từ đầy đủ (có dấu cách hoặc >= 3 ký tự)
+            const words = query.split(/\s+/).filter(w => w.length > 0);
+            const hasFullWord = words.length >= 2 || (words.length === 1 && words[0].length >= 3);
+
+            if (!hasFullWord) {
+                dropdown.classList.remove('show');
+                dropdown.innerHTML = '';
+                return;
+            }
+
+            let cache = filterOldMovies(loadMovieCache());
+            const q = query.toLowerCase();
+            const matches = cache.filter(m => m.name.toLowerCase().includes(q));
+
+            if (matches.length === 0) {
+                dropdown.classList.remove('show');
+                dropdown.innerHTML = '';
+                return;
+            }
+
+            dropdown.innerHTML = '';
+            matches.slice(0, 8).forEach(m => {
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.innerHTML = `
+                    <img src="${m.poster}" onerror="this.style.display='none'">
+                    <div class="autocomplete-item-info">
+                        <div class="autocomplete-item-name">${m.name}</div>
+                        <div class="autocomplete-item-meta">${m.rating} · ${m.format}</div>
+                    </div>
+                `;
+                item.addEventListener('mousedown', function(e) {
+                    e.preventDefault(); // Không blur input trước khi click xử lý
+                    applyMovieFromCache(m);
+                });
+                dropdown.appendChild(item);
+            });
+            dropdown.classList.add('show');
+        }
+
+        function applyMovieFromCache(m) {
+            document.getElementById('movieTitle').value = m.name;
+            document.getElementById('ageRating').value = m.rating;
+            document.getElementById('movieFormat').value = m.format;
+            currentPosterData = m.poster;
+            document.getElementById('posterPreview').src = m.poster;
+            document.getElementById('posterPreview').style.display = 'block';
+            document.getElementById('autocompleteDropdown').classList.remove('show');
+            // Cập nhật lại sections theo format mới
+            updateShowtimeSections();
+        }
+
+        // Gắn sự kiện autocomplete vào input tên phim
+        document.getElementById('movieTitle').addEventListener('input', handleAutocomplete);
+        document.getElementById('movieTitle').addEventListener('focus', handleAutocomplete);
+        document.getElementById('movieTitle').addEventListener('blur', function() {
+            // Delay để mousedown của item xử lý trước
+            setTimeout(() => {
+                document.getElementById('autocompleteDropdown').classList.remove('show');
+            }, 150);
+        });
+
+        // Đóng dropdown khi click ra ngoài
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.movie-title-wrapper')) {
+                document.getElementById('autocompleteDropdown').classList.remove('show');
+            }
+        });
+
+        // Auto-fill khi chọn poster mới
+        document.getElementById('posterInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const posterData = event.target.result;
+                currentPosterData = posterData;
+                document.getElementById('posterPreview').src = posterData;
+                document.getElementById('posterPreview').style.display = 'block';
+
+                // Tìm phim trong cache theo poster base64
+                const cache = filterOldMovies(loadMovieCache());
+
+                // Match 1: so sánh đầy đủ base64
+                let match = cache.find(m => m.poster === posterData);
+
+                // Match 2: fallback — so sánh 200 ký tự đầu của base64 (cùng file = cùng header)
+                if (!match) {
+                    const head = posterData.substring(0, 200);
+                    match = cache.find(m => m.poster && m.poster.substring(0, 200) === head);
+                }
+
+                if (match) {
+                    // ✅ Bắt buộc fill tên phim
+                    document.getElementById('movieTitle').value = match.name;
+                    document.getElementById('ageRating').value = match.rating;
+                    document.getElementById('movieFormat').value = match.format;
+                    // ✅ Fill language nếu có
+                    if (match.language) {
+                        document.getElementById('movieLanguage').value = match.language;
+                    }
+                    updateShowtimeSections();
+                    showToast('✅ Đã tự động điền thông tin phim từ cache!', 'success');
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // ==================== END MOVIE CACHE SYSTEM ====================
 
         console.log('🔄 Đang tải dữ liệu...');
         loadFromLocalStorage();
         console.log('📊 moviesData sau khi load:', moviesData);
         loadData();
         console.log('✅ Khởi tạo hoàn tất');
-        
 
-        
-
+        // Khởi tạo cache: lọc phim cũ ngay khi load
+        (function initMovieCache() {
+            const cache = filterOldMovies(loadMovieCache());
+            saveMovieCacheToStorage(cache);
+            console.log(`🎬 Movie cache: ${cache.length} phim`);
+        })();
 
         document.getElementById('movieTitle').addEventListener('paste', function (e) {
             e.preventDefault();
@@ -2663,6 +2861,8 @@
             text = text.split('\n')[0];
             text = text.replace(/Xem thêm tại:.*/i, '').trim();
             this.value = text;
+            // Trigger autocomplete sau paste
+            setTimeout(handleAutocomplete, 50);
         });
 
     </script>
