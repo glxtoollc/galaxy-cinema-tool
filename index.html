@@ -313,21 +313,7 @@
             opacity: 0.5;
             cursor: grabbing;
         }
-        .movie-card.highlight {
-            border-color: #ea580c;
-            background: #fed7aa;
-            box-shadow: 0 4px 12px rgba(234, 88, 12, 0.5);
-        }
-        .movie-card.edited-movie {
-            background-color: #d4edda !important;
-            border: 2px solid #28a745 !important;
-            box-shadow: 0 2px 10px rgba(40, 167, 69, 0.3) !important;
-        }
-        .movie-card.edited-movie:hover {
-            border-color: #1e7e34 !important;
-            box-shadow: 0 4px 14px rgba(40, 167, 69, 0.5) !important;
-        }
-        /* ✅ FIX: Highlight toàn bộ card sau khi bấm Lưu phim */
+        /* ✅ Highlight toàn bộ card sau khi bấm Lưu phim */
         .saved-movie {
             background-color: #ffe066 !important;
             border-left: 8px solid #ffcc00 !important;
@@ -1519,10 +1505,9 @@
 
         function searchMovie() {
             const searchTerm = document.getElementById('searchBox').value.toLowerCase().trim();
-            const movieCards = document.querySelectorAll('.movie-card');
-            movieCards.forEach(card => { card.classList.remove('highlight'); });
             if (searchTerm === '') return;
             const movies = moviesData[currentCinema] || [];
+            const movieCards = document.querySelectorAll('.movie-card');
             let foundIndex = -1;
             for (let i = 0; i < movies.length; i++) {
                 if (movies[i].title.toLowerCase().includes(searchTerm)) {
@@ -1531,7 +1516,6 @@
                 }
             }
             if (foundIndex !== -1 && movieCards[foundIndex]) {
-                movieCards[foundIndex].classList.add('highlight');
                 movieCards[foundIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
@@ -1769,7 +1753,6 @@
             const idx = (moviesData[currentCinema] || []).findIndex(m => m.id === editingMovieId);
             if (idx !== -1) {
                 moviesData[currentCinema][idx].showtimes = JSON.parse(JSON.stringify(currentShowtimes));
-                moviesData[currentCinema][idx].edited = true;
                 renderMoviesList(moviesData[currentCinema]);
                 generatePreview(moviesData[currentCinema]);
                 if (database) {
@@ -1990,7 +1973,6 @@
                 const card = document.createElement('div');
                 // ✅ FIX: Thêm class saved-movie vào outermost container khi movie.saved = true
                 card.className = 'movie-card' +
-                    (movie.edited ? ' edited-movie' : '') +
                     (movie.saved ? ' saved-movie' : '');
                 card.dataset.index = index;
                 
@@ -2363,22 +2345,6 @@
                 ctx.textAlign = 'center';
                 ctx.fillText(movie.ageRating, badgeX, badgeY + 5);
 
-                if (movie.edited) {
-                    const pillText = '✏ đã sửa';
-                    ctx.font = 'bold 11px Arial';
-                    const pillW = ctx.measureText(pillText).width + 14;
-                    const pillH = 18;
-                    const pillX = canvasWidth - pillW - 10;
-                    const pillY = movieStartY + 4;
-                    ctx.fillStyle = '#f59e0b';
-                    ctx.beginPath();
-                    ctx.roundRect(pillX, pillY, pillW, pillH, 9);
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.textAlign = 'left';
-                    ctx.fillText(pillText, pillX + 7, pillY + 13);
-                }
-                
                 ctx.font = 'bold 22px Arial';
                 ctx.textAlign = 'left';
                 let fullTitle = movie.title;
