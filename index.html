@@ -1097,159 +1097,44 @@
             if (e.key === 'Escape') {
                 closeImageModal();
                 closeCustomConfirm();
+                // Đóng tất cả dropdown giờ/phút
+                document.querySelectorAll('[id^="hourDropdown"],[id^="minuteDropdown"]').forEach(d => d.style.display = 'none');
             }
-            
+
             if (!e.ctrlKey && !e.altKey && !e.metaKey) {
-                const activeElement = document.activeElement;
-                const isTyping = activeElement.tagName === 'INPUT' || 
-                                 activeElement.tagName === 'TEXTAREA';
-                
+                const activeEl = document.activeElement;
+                const isTyping = activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA';
                 if (!isTyping) {
                     const key = e.key.toLowerCase();
-                    
-                    if (e.isComposing || e.keyCode === 229) {
-                        return;
+                    if (e.isComposing || e.keyCode === 229) return;
+
+                    // ── Phím tắt GIỜ (A=07, S=08, D=09) ──
+                    // Tìm section đang focus gần nhất (có hourDropdown đang mở)
+                    const openHourDD = document.querySelector('[id^="hourDropdown"][style*="block"]');
+                    const openMinDD  = document.querySelector('[id^="minuteDropdown"][style*="block"]');
+
+                    if (openHourDD) {
+                        const sid = openHourDD.id.replace('hourDropdown', '');
+                        if (key === 'a' || key === 'ă' || key === 'â') { e.preventDefault(); selectHourVal(sid, '07'); }
+                        else if (key === 's')                           { e.preventDefault(); selectHourVal(sid, '08'); }
+                        else if (key === 'd' || key === 'đ')            { e.preventDefault(); selectHourVal(sid, '09'); }
                     }
-                    
-                    console.log('Key:', key, 'Code:', e.code, 'Composing:', e.isComposing);
-                    
-                    if (key === ' ') {
-                        e.preventDefault();
-                        let openDropdown = document.querySelector('[id^="minuteDropdown"][data-open="true"]');
-                        if (!openDropdown) {
-                            openDropdown = document.querySelector('[id^="hourDropdown"][data-open="true"]');
-                        }
-                        if (openDropdown) {
-                            openDropdown.style.display = 'none';
-                            openDropdown.dataset.open = 'false';
-                            const timePicker = openDropdown.closest('.format-section')?.querySelector('.time-picker');
-                            if (timePicker) {
-                                const btn = timePicker.querySelector('.btn-primary');
-                                if (btn) {
-                                    btn.click();
-                                    console.log('Space: Saved (dropdown was open)');
-                                }
-                            }
-                        } else {
-                            const allButtons = document.querySelectorAll('.time-picker .btn-primary');
-                            let clicked = false;
-                            allButtons.forEach(btn => {
-                                if (btn.textContent.includes('Thêm')) {
-                                    btn.click();
-                                    clicked = true;
-                                }
-                            });
-                            if (clicked) {
-                                console.log('Space: Saved ALL sections');
-                            }
-                        }
-                    }
-                    else if (key === 'a' || key === 'ă' || key === 'â') {
-                        e.preventDefault();
-                        const openDropdown = document.querySelector('[id^="hourDropdown"][data-open="true"]');
-                        if (openDropdown && openDropdown.dataset.sectionId) {
-                            selectHour(openDropdown.dataset.sectionId, '07');
-                        }
-                    }
-                    else if (key === 's') {
-                        e.preventDefault();
-                        const openDropdown = document.querySelector('[id^="hourDropdown"][data-open="true"]');
-                        if (openDropdown && openDropdown.dataset.sectionId) {
-                            selectHour(openDropdown.dataset.sectionId, '08');
-                        }
-                    }
-                    else if (key === 'd' || key === 'đ') {
-                        e.preventDefault();
-                        const openDropdown = document.querySelector('[id^="hourDropdown"][data-open="true"]');
-                        if (openDropdown && openDropdown.dataset.sectionId) {
-                            selectHour(openDropdown.dataset.sectionId, '09');
-                        }
-                    }
-                    else if (key >= '0' && key <= '9') {
-                        const openDropdown = document.querySelector('[id^="hourDropdown"][data-open="true"]');
-                        if (openDropdown && openDropdown.dataset.sectionId) {
-                            e.preventDefault();
-                            const sectionId = openDropdown.dataset.sectionId;
-                            const display = document.getElementById(`hourDisplay${sectionId}`);
-                            const currentHour = parseInt(display.dataset.currentValue);
-                            const pressedDigit = parseInt(key);
-                            const currentTens = Math.floor(currentHour / 10);
-                            let newHour;
-                            if (pressedDigit === 1) {
-                                if (currentTens === 1) {
-                                    newHour = currentHour + 1;
-                                    if (newHour > 19) newHour = 10;
-                                } else {
-                                    newHour = 10;
-                                }
-                            } else if (pressedDigit === 2) {
-                                if (currentTens === 2) {
-                                    newHour = currentHour + 1;
-                                    if (newHour > 23) newHour = 20;
-                                } else {
-                                    newHour = 20;
-                                }
-                            } else if (pressedDigit >= 0 && pressedDigit <= 9) {
-                                newHour = currentHour + pressedDigit;
-                                if (newHour > 23) newHour = 23;
-                                if (newHour < 7) newHour = 7;
-                            }
-                            if (newHour !== undefined) {
-                                selectHour(sectionId, newHour.toString().padStart(2, '0'));
-                            }
-                        }
-                    }
-                    else if (key === 'q') {
-                        e.preventDefault();
-                        const openDropdown = document.querySelector('[id^="minuteDropdown"][data-open="true"]');
-                        if (openDropdown && openDropdown.dataset.sectionId) {
-                            selectMinute(openDropdown.dataset.sectionId, '00');
-                        }
-                    }
-                    else if (key === 'w' || key === 'ư') {
-                        e.preventDefault();
-                        console.log('W pressed! key:', key, 'code:', e.code);
-                        const openDropdown = document.querySelector('[id^="minuteDropdown"][data-open="true"]');
-                        if (openDropdown && openDropdown.dataset.sectionId) {
-                            console.log('Found dropdown, selecting 15...');
-                            selectMinute(openDropdown.dataset.sectionId, '15');
-                        } else {
-                            console.log('No dropdown open!');
-                        }
-                    }
-                    else if (key === 'e' || key === 'ê') {
-                        e.preventDefault();
-                        const openDropdown = document.querySelector('[id^="minuteDropdown"][data-open="true"]');
-                        if (openDropdown && openDropdown.dataset.sectionId) {
-                            selectMinute(openDropdown.dataset.sectionId, '30');
-                        }
-                    }
-                    else if (key === 'r') {
-                        e.preventDefault();
-                        const openDropdown = document.querySelector('[id^="minuteDropdown"][data-open="true"]');
-                        if (openDropdown && openDropdown.dataset.sectionId) {
-                            selectMinute(openDropdown.dataset.sectionId, '45');
-                        }
+
+                    // ── Phím tắt PHÚT (Q=00, W=15, E=30, R=45) ──
+                    if (openMinDD) {
+                        const sid = openMinDD.id.replace('minuteDropdown', '');
+                        if (key === 'q')                    { e.preventDefault(); selectMinuteVal(sid, '00'); }
+                        else if (key === 'w' || key === 'ư') { e.preventDefault(); selectMinuteVal(sid, '15'); }
+                        else if (key === 'e' || key === 'ê') { e.preventDefault(); selectMinuteVal(sid, '30'); }
+                        else if (key === 'r')                { e.preventDefault(); selectMinuteVal(sid, '45'); }
                     }
                 }
             }
-            
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                downloadSchedule();
-            }
-            if (e.ctrlKey && e.key === 'z') {
-                e.preventDefault();
-                undo();
-            }
-            if (e.ctrlKey && e.key === 'y') {
-                e.preventDefault();
-                redo();
-            }
-            if (e.ctrlKey && e.key === 'f') {
-                e.preventDefault();
-                document.getElementById('searchBox').focus();
-            }
+
+            if (e.ctrlKey && e.key === 's') { e.preventDefault(); downloadSchedule(); }
+            if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+            if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
+            if (e.ctrlKey && e.key === 'f') { e.preventDefault(); document.getElementById('searchBox').focus(); }
         });
 
         function updateShowtimeSections() {
@@ -1304,172 +1189,266 @@
                 section.innerHTML = `
                     <h4>Giờ chiếu ${sectionName}:</h4>
                     <div class="form-group">
-                        <div class="time-picker" style="position: relative;">
+                        <div class="time-picker" style="position: relative; display:flex; align-items:center; gap:8px;">
+                            <!-- HOUR -->
                             <div style="position: relative; display: inline-block;">
-                                <div id="hourDisplay${sectionId}" style="display: inline-block; padding: 8px 20px 8px 8px; border: 2px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; width: 60px; height: 38px; box-sizing: border-box; position: relative; text-align: center; line-height: 22px; font-size: 14px;" onclick="toggleHourDropdown('${sectionId}')">
-                                    <span id="hourValue${sectionId}">07</span>
-                                    <span style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 10px;">▼</span>
+                                <div id="hourDisplay${sectionId}"
+                                     style="display:inline-flex; align-items:center; padding:8px 0 8px 8px; border:2px solid #d1d5db; border-radius:6px; background:white; cursor:pointer; width:75px; height:38px; box-sizing:border-box; position:relative; font-size:14px; font-weight:600; color:#1f2937;"
+                                     onclick="toggleHourDropdown('${sectionId}')">
+                                    <input
+                                        id="hourInput${sectionId}"
+                                        type="text"
+                                        maxlength="2"
+                                        inputmode="numeric"
+                                        placeholder="07"
+                                        autocomplete="off"
+                                        style="width:28px; border:none; outline:none; background:transparent; font-size:14px; font-weight:600; text-align:center; color:#1f2937; cursor:text; padding:0; flex-shrink:0;"
+                                        oninput="handleHourInput(event,'${sectionId}')"
+                                        onblur="validateHourInput('${sectionId}')"
+                                        onkeydown="handleHourKey(event,'${sectionId}','${sectionName}')"
+                                        onclick="event.stopPropagation()"
+                                    >
+                                    <span style="color:#d1d5db; margin:0 2px; font-size:14px; pointer-events:none;">|</span>
+                                    <span style="font-size:10px; color:#6b7280; pointer-events:none;">▼</span>
                                 </div>
-                                <div id="hourDropdown${sectionId}" style="display: none; position: absolute; top: 100%; left: 0; background: white; border: 2px solid #d1d5db; border-radius: 6px; margin-top: 2px; width: 60px; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto;">
-                                    <div id="hourOptions${sectionId}">
-                                        <div class="hour-option" data-value="07" onclick="selectHour('${sectionId}', '07')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px; white-space: nowrap;">07 <span style="color: #9ca3af; font-size: 11px;">(A)</span></div>
-                                        <div class="hour-option" data-value="08" onclick="selectHour('${sectionId}', '08')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px; white-space: nowrap;">08 <span style="color: #9ca3af; font-size: 11px;">(S)</span></div>
-                                        <div class="hour-option" data-value="09" onclick="selectHour('${sectionId}', '09')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px; white-space: nowrap;">09 <span style="color: #9ca3af; font-size: 11px;">(D)</span></div>
-                                        <div class="hour-option" data-value="10" onclick="selectHour('${sectionId}', '10')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">10</div>
-                                        <div class="hour-option" data-value="11" onclick="selectHour('${sectionId}', '11')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">11</div>
-                                        <div class="hour-option" data-value="12" onclick="selectHour('${sectionId}', '12')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">12</div>
-                                        <div class="hour-option" data-value="13" onclick="selectHour('${sectionId}', '13')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">13</div>
-                                        <div class="hour-option" data-value="14" onclick="selectHour('${sectionId}', '14')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">14</div>
-                                        <div class="hour-option" data-value="15" onclick="selectHour('${sectionId}', '15')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">15</div>
-                                        <div class="hour-option" data-value="16" onclick="selectHour('${sectionId}', '16')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">16</div>
-                                        <div class="hour-option" data-value="17" onclick="selectHour('${sectionId}', '17')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">17</div>
-                                        <div class="hour-option" data-value="18" onclick="selectHour('${sectionId}', '18')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">18</div>
-                                        <div class="hour-option" data-value="19" onclick="selectHour('${sectionId}', '19')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">19</div>
-                                        <div class="hour-option" data-value="20" onclick="selectHour('${sectionId}', '20')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">20</div>
-                                        <div class="hour-option" data-value="21" onclick="selectHour('${sectionId}', '21')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">21</div>
-                                        <div class="hour-option" data-value="22" onclick="selectHour('${sectionId}', '22')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">22</div>
-                                        <div class="hour-option" data-value="23" onclick="selectHour('${sectionId}', '23')" style="padding: 6px 8px; cursor: pointer; text-align: center; font-size: 14px;">23</div>
-                                    </div>
+                                <div id="hourDropdown${sectionId}"
+                                     style="display:none; position:absolute; top:100%; left:0; background:white; border:2px solid #d1d5db; border-radius:6px; margin-top:2px; width:75px; z-index:1000; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-height:200px; overflow-y:auto;">
+                                    ${Array.from({length:17},(_,i)=>i+7).map(h=>{
+                                        const v=String(h).padStart(2,'0');
+                                        return `<div class="hour-option" data-value="${v}" onclick="selectHourVal('${sectionId}','${v}')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:center;font-size:14px;">${v}</div>`;
+                                    }).join('')}
                                 </div>
                             </div>
+                            <span style="font-size:16px; font-weight:700; color:#6b7280;">:</span>
+                            <!-- MINUTE -->
                             <div style="position: relative; display: inline-block;">
-                                <div id="minuteDisplay${sectionId}" style="display: inline-block; padding: 8px 20px 8px 8px; border: 2px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; width: 60px; height: 38px; box-sizing: border-box; position: relative; text-align: center; line-height: 22px; font-size: 14px;" onclick="toggleMinuteDropdown('${sectionId}')">
-                                    <span id="minuteValue${sectionId}">00</span>
-                                    <span style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 10px;">▼</span>
+                                <div id="minuteDisplay${sectionId}"
+                                     style="display:inline-flex; align-items:center; padding:8px 0 8px 8px; border:2px solid #d1d5db; border-radius:6px; background:white; cursor:pointer; width:75px; height:38px; box-sizing:border-box; position:relative; font-size:14px; font-weight:600; color:#1f2937;"
+                                     onclick="toggleMinuteDropdown('${sectionId}')">
+                                    <input
+                                        id="minuteInput${sectionId}"
+                                        type="text"
+                                        maxlength="2"
+                                        inputmode="numeric"
+                                        placeholder="00"
+                                        autocomplete="off"
+                                        style="width:28px; border:none; outline:none; background:transparent; font-size:14px; font-weight:600; text-align:center; color:#1f2937; cursor:text; padding:0; flex-shrink:0;"
+                                        oninput="validateMinuteInput('${sectionId}')"
+                                        onblur="validateMinuteInput('${sectionId}')"
+                                        onkeydown="handleMinuteKey(event,'${sectionId}','${sectionName}')"
+                                        onclick="event.stopPropagation()"
+                                    >
+                                    <span style="color:#d1d5db; margin:0 2px; font-size:14px; pointer-events:none;">|</span>
+                                    <span style="font-size:10px; color:#6b7280; pointer-events:none;">▼</span>
                                 </div>
-                                <div id="minuteDropdown${sectionId}" style="display: none; position: absolute; top: 100%; left: 0; background: white; border: 2px solid #d1d5db; border-radius: 6px; margin-top: 2px; width: 60px; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                                    <div style="position: sticky; top: 0; background: white; border-bottom: 2px solid #d1d5db; z-index: 10;">
-                                        <div id="minuteToggle${sectionId}" onclick="toggleMinuteMode('${sectionId}')" style="padding: 5px 2px; cursor: pointer; font-weight: 600; color: #3b82f6; text-align: center; font-size: 10px; white-space: nowrap;">▼ Chi tiết</div>
+                                <div id="minuteDropdown${sectionId}"
+                                     style="display:none; position:absolute; top:100%; left:0; background:white; border:2px solid #d1d5db; border-radius:6px; margin-top:2px; width:90px; z-index:1000; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                                    <div style="position:sticky; top:0; background:white; border-bottom:2px solid #d1d5db; z-index:10;">
+                                        <div id="minuteToggle${sectionId}" onclick="toggleMinuteMode('${sectionId}')" style="padding:5px 2px; cursor:pointer; font-weight:600; color:#3b82f6; text-align:center; font-size:10px; white-space:nowrap;">▼ Chi tiết</div>
                                     </div>
-                                    <div id="minuteOptionsScroll${sectionId}" style="max-height: 150px; overflow-y: auto;">
+                                    <div id="minuteOptionsScroll${sectionId}" style="max-height:150px; overflow-y:auto;">
                                         <div id="minuteOptions${sectionId}">
-                                            <div class="minute-option" data-value="00" onclick="selectMinute('${sectionId}', '00')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">
-                                                00 <span style="color: #9ca3af; font-size: 11px;">(Q)</span>
-                                            </div>
-                                            <div class="minute-option" data-value="15" onclick="selectMinute('${sectionId}', '15')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">
-                                                15 <span style="color: #9ca3af; font-size: 11px;">(W)</span>
-                                            </div>
-                                            <div class="minute-option" data-value="30" onclick="selectMinute('${sectionId}', '30')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">
-                                                30 <span style="color: #9ca3af; font-size: 11px;">(E)</span>
-                                            </div>
-                                            <div class="minute-option" data-value="45" onclick="selectMinute('${sectionId}', '45')" style="padding: 6px 8px; cursor: pointer; text-align: center; font-size: 14px;">
-                                                45 <span style="color: #9ca3af; font-size: 11px;">(R)</span>
-                                            </div>
+                                            <div class="minute-option" data-value="00" onclick="selectMinuteVal('${sectionId}','00')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px;white-space:nowrap;">00 <span style="color:#9ca3af;font-size:11px;">(Q)</span></div>
+                                            <div class="minute-option" data-value="15" onclick="selectMinuteVal('${sectionId}','15')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px;white-space:nowrap;">15 <span style="color:#9ca3af;font-size:11px;">(W)</span></div>
+                                            <div class="minute-option" data-value="30" onclick="selectMinuteVal('${sectionId}','30')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px;white-space:nowrap;">30 <span style="color:#9ca3af;font-size:11px;">(E)</span></div>
+                                            <div class="minute-option" data-value="45" onclick="selectMinuteVal('${sectionId}','45')" style="padding:6px 8px;cursor:pointer;text-align:left;font-size:14px;white-space:nowrap;">45 <span style="color:#9ca3af;font-size:11px;">(R)</span></div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <button class="btn btn-primary" onclick="addShowtime('${sectionName}')">Thêm</button>
+                            <button class="btn btn-primary" onclick="addShowtimeFromInputs('${sectionId}','${sectionName}')">Thêm</button>
                         </div>
                         <div class="showtimes-list" id="showtimesList${sectionId}"></div>
                     </div>
                 `;
                 container.appendChild(section);
-                
-                const hourDisplay = document.getElementById(`hourDisplay${sectionId}`);
-                hourDisplay.dataset.currentValue = '07';
-                
-                const minuteDisplay = document.getElementById(`minuteDisplay${sectionId}`);
-                minuteDisplay.dataset.currentValue = '00';
-                minuteDisplay.dataset.mode = 'quick';
-                
                 renderShowtimes(sectionName);
             });
-        }
-        
-        window.toggleHourDropdown = function(sectionId) {
-            const dropdown = document.getElementById(`hourDropdown${sectionId}`);
-            document.querySelectorAll('[id^="hourDropdown"]').forEach(d => {
-                if (d.id !== `hourDropdown${sectionId}`) {
-                    d.style.display = 'none';
-                    d.dataset.open = 'false';
-                }
-            });
-            document.querySelectorAll('[id^="minuteDropdown"]').forEach(d => {
-                d.style.display = 'none';
-                d.dataset.open = 'false';
-            });
-            const isOpen = dropdown.style.display === 'block';
-            dropdown.style.display = isOpen ? 'none' : 'block';
-            dropdown.dataset.open = isOpen ? 'false' : 'true';
-            dropdown.dataset.sectionId = sectionId;
-        };
-        
-        window.selectHour = function(sectionId, value, keepOpen = false) {
-            const display = document.getElementById(`hourDisplay${sectionId}`);
-            const valueSpan = document.getElementById(`hourValue${sectionId}`);
-            const dropdown = document.getElementById(`hourDropdown${sectionId}`);
-            valueSpan.textContent = value;
-            display.dataset.currentValue = value;
-            if (!keepOpen) {
-                dropdown.style.display = 'none';
-                dropdown.dataset.open = 'false';
-            }
-        };
-        
-        window.toggleMinuteDropdown = function(sectionId) {
-            const dropdown = document.getElementById(`minuteDropdown${sectionId}`);
-            document.querySelectorAll('[id^="minuteDropdown"]').forEach(d => {
-                if (d.id !== `minuteDropdown${sectionId}`) {
-                    d.style.display = 'none';
-                    d.dataset.open = 'false';
-                }
-            });
-            const isOpen = dropdown.style.display === 'block';
-            dropdown.style.display = isOpen ? 'none' : 'block';
-            dropdown.dataset.open = isOpen ? 'false' : 'true';
-            dropdown.dataset.sectionId = sectionId;
-        };
-        
-        window.selectMinute = function(sectionId, value, keepOpen = false) {
-            const display = document.getElementById(`minuteDisplay${sectionId}`);
-            const valueSpan = document.getElementById(`minuteValue${sectionId}`);
-            const dropdown = document.getElementById(`minuteDropdown${sectionId}`);
-            valueSpan.textContent = value;
-            display.dataset.currentValue = value;
-            if (!keepOpen) {
-                dropdown.style.display = 'none';
-                dropdown.dataset.open = 'false';
-            }
-        };
-        
-        window.toggleMinuteMode = function(sectionId) {
-            const display = document.getElementById(`minuteDisplay${sectionId}`);
-            const optionsContainer = document.getElementById(`minuteOptions${sectionId}`);
-            const toggleButton = document.getElementById(`minuteToggle${sectionId}`);
-            const scrollContainer = document.getElementById(`minuteOptionsScroll${sectionId}`);
-            const currentMode = display.dataset.mode || 'quick';
-            
-            if (currentMode === 'quick') {
-                let html = '';
-                for (let i = 0; i <= 59; i++) {
-                    const val = i.toString().padStart(2, '0');
-                    html += '<div class="minute-option" data-value="' + val + '" onclick="selectMinute(\'' + sectionId + '\', \'' + val + '\')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">' + val + '</div>';
-                }
-                optionsContainer.innerHTML = html;
-                toggleButton.innerHTML = '▲ Thu gọn';
-                toggleButton.style.fontSize = '10px';
-                toggleButton.style.whiteSpace = 'nowrap';
-                scrollContainer.style.maxHeight = '200px';
-                display.dataset.mode = 'full';
-            } else {
-                let html = '';
-                html += '<div class="minute-option" data-value="00" onclick="selectMinute(\'' + sectionId + '\', \'00\')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">00</div>';
-                html += '<div class="minute-option" data-value="15" onclick="selectMinute(\'' + sectionId + '\', \'15\')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">15</div>';
-                html += '<div class="minute-option" data-value="30" onclick="selectMinute(\'' + sectionId + '\', \'30\')" style="padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">30</div>';
-                html += '<div class="minute-option" data-value="45" onclick="selectMinute(\'' + sectionId + '\', \'45\')" style="padding: 6px 8px; cursor: pointer; text-align: center; font-size: 14px;">45</div>';
-                optionsContainer.innerHTML = html;
-                toggleButton.innerHTML = '▼ Chi tiết';
-                toggleButton.style.fontSize = '10px';
-                toggleButton.style.whiteSpace = 'nowrap';
-                scrollContainer.style.maxHeight = '150px';
-                display.dataset.mode = 'quick';
-            }
         }
         
         document.getElementById('movieFormat').addEventListener('change', updateShowtimeSections);
         document.getElementById('movieLanguage').addEventListener('change', updateShowtimeSections);
         updateShowtimeSections();
+
+        // ==================== SHOWTIME INPUT (hour + minute) ====================
+
+        function getHourVal(sectionId) {
+            const el = document.getElementById(`hourInput${sectionId}`);
+            return el ? el.value.trim() : '';
+        }
+        function getMinuteVal(sectionId) {
+            const el = document.getElementById(`minuteInput${sectionId}`);
+            return el ? el.value.trim() : '';
+        }
+
+        window.handleHourInput = function(e, sectionId) {
+            const input = e.target;
+            // Chỉ cho số
+            input.value = input.value.replace(/\D/g, '');
+            input.style.borderColor = '#d1d5db';
+            // Tự động sang minute khi nhập đủ 2 chữ số
+            if (input.value.length === 2) {
+                const h = parseInt(input.value);
+                if (h >= 0 && h <= 23) {
+                    const min = document.getElementById(`minuteInput${sectionId}`);
+                    if (min) { min.focus(); min.select(); }
+                } else {
+                    input.style.borderColor = '#ef4444';
+                }
+            }
+        };
+
+        window.validateHourInput = function(sectionId) {
+            const input = document.getElementById(`hourInput${sectionId}`);
+            if (!input || !input.value) return;
+            const h = parseInt(input.value);
+            if (isNaN(h) || h < 0 || h > 23) {
+                input.style.borderColor = '#ef4444';
+            } else {
+                input.value = String(h).padStart(2, '0');
+                input.style.borderColor = '#d1d5db';
+            }
+        };
+
+        window.validateMinuteInput = function(sectionId) {
+            const input = document.getElementById(`minuteInput${sectionId}`);
+            if (!input) return;
+            // Chỉ cho số
+            input.value = input.value.replace(/\D/g, '');
+            if (!input.value) return;
+            const m = parseInt(input.value);
+            if (isNaN(m) || m < 0 || m > 59) {
+                input.style.borderColor = '#ef4444';
+            } else {
+                if (input.value.length === 2) {
+                    input.value = String(m).padStart(2, '0');
+                }
+                input.style.borderColor = '#d1d5db';
+            }
+        };
+
+        window.handleHourKey = function(e, sectionId, sectionName) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const min = document.getElementById(`minuteInput${sectionId}`);
+                if (min && !min.value) { min.focus(); }
+                else { addShowtimeFromInputs(sectionId, sectionName); }
+            }
+        };
+
+        window.handleMinuteKey = function(e, sectionId, sectionName) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addShowtimeFromInputs(sectionId, sectionName);
+            }
+        };
+
+        window.addShowtimeFromInputs = function(sectionId, sectionName) {
+            const hourEl   = document.getElementById(`hourInput${sectionId}`);
+            const minuteEl = document.getElementById(`minuteInput${sectionId}`);
+            if (!hourEl || !minuteEl) return;
+
+            const hRaw = hourEl.value.trim();
+            const mRaw = minuteEl.value.trim();
+
+            if (!hRaw || !mRaw) {
+                if (!hRaw) hourEl.style.borderColor   = '#ef4444';
+                if (!mRaw) minuteEl.style.borderColor = '#ef4444';
+                return;
+            }
+
+            const h = parseInt(hRaw);
+            const m = parseInt(mRaw);
+
+            if (isNaN(h) || h < 0 || h > 23) { hourEl.style.borderColor   = '#ef4444'; return; }
+            if (isNaN(m) || m < 0 || m > 59)  { minuteEl.style.borderColor = '#ef4444'; return; }
+
+            const time = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+
+            if (!currentShowtimes[sectionName]) currentShowtimes[sectionName] = [];
+            if (!currentShowtimes[sectionName].includes(time)) {
+                currentShowtimes[sectionName].push(time);
+                currentShowtimes[sectionName].sort();
+                renderShowtimes(sectionName);
+                syncPreview();
+            }
+
+            hourEl.value   = '';
+            minuteEl.value = '';
+            hourEl.style.borderColor   = '#d1d5db';
+            minuteEl.style.borderColor = '#d1d5db';
+            hourEl.focus();
+        };
+
+        // Giữ tương thích với code cũ gọi addShowtimeFromInput (1 input)
+        window.addShowtimeFromInput = window.addShowtimeFromInputs;
+
+        window.toggleHourDropdown = function(sectionId) {
+            const dd = document.getElementById(`hourDropdown${sectionId}`);
+            // Đóng tất cả dropdown khác
+            document.querySelectorAll('[id^="hourDropdown"],[id^="minuteDropdown"]').forEach(d => {
+                if (d.id !== `hourDropdown${sectionId}`) d.style.display = 'none';
+            });
+            dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+        };
+
+        window.toggleMinuteDropdown = function(sectionId) {
+            const dd = document.getElementById(`minuteDropdown${sectionId}`);
+            document.querySelectorAll('[id^="hourDropdown"],[id^="minuteDropdown"]').forEach(d => {
+                if (d.id !== `minuteDropdown${sectionId}`) d.style.display = 'none';
+            });
+            dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+        };
+
+        window.selectHourVal = function(sectionId, value) {
+            const input = document.getElementById(`hourInput${sectionId}`);
+            if (input) { input.value = value; input.style.borderColor = '#d1d5db'; }
+            document.getElementById(`hourDropdown${sectionId}`).style.display = 'none';
+            // Auto focus minute sau khi chọn hour
+            const min = document.getElementById(`minuteInput${sectionId}`);
+            if (min) min.focus();
+        };
+
+        window.selectMinuteVal = function(sectionId, value) {
+            const input = document.getElementById(`minuteInput${sectionId}`);
+            if (input) { input.value = value; input.style.borderColor = '#d1d5db'; }
+            document.getElementById(`minuteDropdown${sectionId}`).style.display = 'none';
+        };
+
+        window.toggleMinuteMode = function(sectionId) {
+            const optionsContainer = document.getElementById(`minuteOptions${sectionId}`);
+            const toggleButton    = document.getElementById(`minuteToggle${sectionId}`);
+            const scrollContainer = document.getElementById(`minuteOptionsScroll${sectionId}`);
+            const isQuick = toggleButton.textContent.includes('Chi tiết');
+            if (isQuick) {
+                let html = '';
+                for (let i = 0; i <= 59; i++) {
+                    const val = String(i).padStart(2, '0');
+                    html += `<div class="minute-option" data-value="${val}" onclick="selectMinuteVal('${sectionId}','${val}')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px;white-space:nowrap;">${val}</div>`;
+                }
+                optionsContainer.innerHTML = html;
+                toggleButton.innerHTML = '▲ Thu gọn';
+                scrollContainer.style.maxHeight = '200px';
+            } else {
+                optionsContainer.innerHTML = `
+                    <div class="minute-option" data-value="00" onclick="selectMinuteVal('${sectionId}','00')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px;white-space:nowrap;">00 <span style="color:#9ca3af;font-size:11px;">(Q)</span></div>
+                    <div class="minute-option" data-value="15" onclick="selectMinuteVal('${sectionId}','15')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px;white-space:nowrap;">15 <span style="color:#9ca3af;font-size:11px;">(W)</span></div>
+                    <div class="minute-option" data-value="30" onclick="selectMinuteVal('${sectionId}','30')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px;white-space:nowrap;">30 <span style="color:#9ca3af;font-size:11px;">(E)</span></div>
+                    <div class="minute-option" data-value="45" onclick="selectMinuteVal('${sectionId}','45')" style="padding:6px 8px;cursor:pointer;text-align:left;font-size:14px;white-space:nowrap;">45 <span style="color:#9ca3af;font-size:11px;">(R)</span></div>
+                `;
+                toggleButton.innerHTML = '▼ Chi tiết';
+                scrollContainer.style.maxHeight = '150px';
+            }
+        };
+
+        // Đóng dropdown khi click ra ngoài
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('[id^="hourDisplay"],[id^="minuteDisplay"],[id^="hourDropdown"],[id^="minuteDropdown"]')) {
+                document.querySelectorAll('[id^="hourDropdown"],[id^="minuteDropdown"]').forEach(d => d.style.display = 'none');
+            }
+        });
+
+        // ==================== END SHOWTIME INPUT ====================
 
         // History management
         function saveToHistory() {
@@ -1760,24 +1739,6 @@
                         console.warn('⚠️ Sync preview save failed:', e.message);
                     });
                 }
-            }
-        }
-
-        function addShowtime(format) {
-            const sectionId = format.replace(/\s+/g, '');
-            const hourDisplay = document.getElementById('hourDisplay' + sectionId);
-            const hour = hourDisplay.dataset.currentValue;
-            const minuteDisplay = document.getElementById('minuteDisplay' + sectionId);
-            const minute = minuteDisplay.dataset.currentValue;
-            const time = `${hour}:${minute}`;
-            if (!currentShowtimes[format]) {
-                currentShowtimes[format] = [];
-            }
-            if (!currentShowtimes[format].includes(time)) {
-                currentShowtimes[format].push(time);
-                currentShowtimes[format].sort();
-                renderShowtimes(format);
-                syncPreview();
             }
         }
 
@@ -2682,9 +2643,10 @@
         function saveMovieToCache(name, poster, rating, format, language) {
             let cache = loadMovieCache();
             cache = filterOldMovies(cache);
-            // Cập nhật nếu đã tồn tại (so sánh tên, không phân biệt hoa thường)
-            const existingIdx = cache.findIndex(m => m.name.toLowerCase() === name.toLowerCase());
-            const entry = { name, poster, rating, format, language: language || '', lastUsed: Date.now() };
+            // ✅ uniqueMovieId = tên + 100 ký tự đầu poster (tránh trùng khi cùng poster khác phim)
+            const uniqueMovieId = name.trim().toLowerCase() + '_' + (poster || '').substring(0, 100);
+            const existingIdx = cache.findIndex(m => m.uniqueMovieId === uniqueMovieId);
+            const entry = { uniqueMovieId, name, poster, rating, format, language: language || '', lastUsed: Date.now() };
             if (existingIdx !== -1) {
                 cache[existingIdx] = entry;
             } else {
@@ -2742,11 +2704,13 @@
             document.getElementById('movieTitle').value = m.name;
             document.getElementById('ageRating').value = m.rating;
             document.getElementById('movieFormat').value = m.format;
+            if (m.language) {
+                document.getElementById('movieLanguage').value = m.language;
+            }
             currentPosterData = m.poster;
             document.getElementById('posterPreview').src = m.poster;
             document.getElementById('posterPreview').style.display = 'block';
             document.getElementById('autocompleteDropdown').classList.remove('show');
-            // Cập nhật lại sections theo format mới
             updateShowtimeSections();
         }
 
@@ -2778,30 +2742,21 @@
                 document.getElementById('posterPreview').src = posterData;
                 document.getElementById('posterPreview').style.display = 'block';
 
-                // Tìm phim trong cache theo poster base64
                 const cache = filterOldMovies(loadMovieCache());
 
-                // Match 1: so sánh đầy đủ base64
-                let match = cache.find(m => m.poster === posterData);
+                // ✅ Chỉ match full base64 — tránh false positive do header ảnh giống nhau
+                const match = cache.find(m => m.poster === posterData);
 
-                // Match 2: fallback — so sánh 200 ký tự đầu của base64 (cùng file = cùng header)
-                if (!match) {
-                    const head = posterData.substring(0, 200);
-                    match = cache.find(m => m.poster && m.poster.substring(0, 200) === head);
-                }
+                if (!match) return;
 
-                if (match) {
-                    // ✅ Bắt buộc fill tên phim
-                    document.getElementById('movieTitle').value = match.name;
-                    document.getElementById('ageRating').value = match.rating;
-                    document.getElementById('movieFormat').value = match.format;
-                    // ✅ Fill language nếu có
-                    if (match.language) {
-                        document.getElementById('movieLanguage').value = match.language;
-                    }
-                    updateShowtimeSections();
-                    showToast('✅ Đã tự động điền thông tin phim từ cache!', 'success');
+                document.getElementById('movieTitle').value = match.name;
+                document.getElementById('ageRating').value = match.rating;
+                document.getElementById('movieFormat').value = match.format;
+                if (match.language) {
+                    document.getElementById('movieLanguage').value = match.language;
                 }
+                updateShowtimeSections();
+                showToast('✅ Đã tự động điền thông tin phim từ cache!', 'success');
             };
             reader.readAsDataURL(file);
         });
