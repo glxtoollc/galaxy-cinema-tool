@@ -892,7 +892,7 @@
                 <!-- Nút Lưu phim nổi bật hơn -->
                 <button class="btn btn-success btn-block" onclick="saveMovie()"
                     style="margin-top:16px; padding:14px; font-size:16px; font-weight:700; border-radius:8px; letter-spacing:0.5px; box-shadow:0 4px 12px rgba(16,185,129,0.4);">
-                    💾 Lưu phim
+                    💾 Lưu phim <span style="font-size:12px; font-weight:400; opacity:0.85;">(Ctrl+X)</span>
                 </button>
             </div>
 
@@ -906,7 +906,7 @@
                         <canvas id="scheduleCanvas" onclick="openImageModal()"></canvas>
                     </div>
                     <p class="zoom-hint">💡 Bấm vào ảnh để phóng to. Click vào ảnh phóng to để zoom 100% (ESC để đóng)</p>
-                    <button class="btn btn-success btn-block" style="margin-top: 15px;" onclick="downloadSchedule()">📥 Tải xuống ảnh PNG</button>
+                    <button class="btn btn-success btn-block" style="margin-top: 15px;" onclick="downloadSchedule()">📥 Tải xuống ảnh PNG <span style="font-size:12px; font-weight:400; opacity:0.85;">(Ctrl+S)</span></button>
                 </div>
             </div>
         </div>
@@ -915,6 +915,7 @@
             <div class="footer-shortcuts">
                 <strong>⌨️ Phím tắt:</strong> 
                 <strong>Ctrl+S</strong> - Tải PNG | 
+                <strong>Ctrl+X</strong> - Lưu phim |
                 <strong>Ctrl+Z</strong> - Hoàn tác | 
                 <strong>Ctrl+Y</strong> - Làm lại | 
                 <strong>Ctrl+F</strong> - Tìm kiếm
@@ -925,7 +926,7 @@
 
     <!-- Version badge cố định góc phải cuối màn hình -->
     <div style="position:fixed; bottom:12px; right:16px; background:#1f2937; color:#9ca3af; font-family:monospace; font-size:11px; padding:4px 10px; border-radius:6px; z-index:9999; user-select:none; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
-        v1.55
+        v1.64
     </div>
 
     <!-- Thông báo mất mạng -->
@@ -1137,6 +1138,7 @@
             }
 
             if (e.ctrlKey && e.key === 's') { e.preventDefault(); downloadSchedule(); }
+            if (e.ctrlKey && e.key === 'x') { e.preventDefault(); saveMovie(); }
             if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
             if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
             if (e.ctrlKey && e.key === 'f') { e.preventDefault(); document.getElementById('searchBox').focus(); }
@@ -1194,11 +1196,11 @@
                 section.innerHTML = `
                     <h4>Giờ chiếu ${sectionName}:</h4>
                     <div class="form-group">
-                        <div class="time-picker" style="position: relative; display:flex; align-items:center; gap:8px;">
+                        <div style="display:flex; align-items:center; justify-content:flex-start; gap:8px; flex-wrap:nowrap;">
                             <!-- HOUR -->
-                            <div style="position: relative; display: inline-block;">
+                            <div style="position:relative; display:inline-block; flex-shrink:0;">
                                 <div id="hourDisplay${sectionId}"
-                                     style="display:inline-flex; align-items:center; padding:8px 0 8px 8px; border:2px solid #d1d5db; border-radius:6px; background:white; cursor:pointer; width:75px; height:38px; box-sizing:border-box; position:relative; font-size:14px; font-weight:600; color:#1f2937;"
+                                     style="display:inline-flex; align-items:center; padding:0 0 0 6px; border:2px solid #d1d5db; border-radius:6px; background:white; cursor:pointer; width:54px; height:32px; box-sizing:border-box; position:relative; font-size:13px; font-weight:600; color:#1f2937;"
                                      onclick="toggleHourDropdown('${sectionId}')">
                                     <input
                                         id="hourInput${sectionId}"
@@ -1207,28 +1209,30 @@
                                         inputmode="numeric"
                                         placeholder="07"
                                         autocomplete="off"
-                                        style="width:28px; border:none; outline:none; background:transparent; font-size:14px; font-weight:600; text-align:center; color:#1f2937; cursor:text; padding:0; flex-shrink:0;"
+                                        style="width:22px; border:none; outline:none; background:transparent; font-size:13px; font-weight:600; text-align:center; color:#1f2937; cursor:text; padding:0; flex-shrink:0;"
                                         oninput="handleHourInput(event,'${sectionId}')"
                                         onblur="validateHourInput('${sectionId}')"
                                         onkeydown="handleHourKey(event,'${sectionId}','${sectionName}')"
                                         onclick="event.stopPropagation()"
                                     >
-                                    <span style="color:#d1d5db; margin:0 2px; font-size:14px; pointer-events:none;">|</span>
-                                    <span style="font-size:10px; color:#6b7280; pointer-events:none;">▼</span>
+                                    <span style="color:#d1d5db; margin:0 2px; font-size:12px; pointer-events:none;">|</span>
+                                    <span style="font-size:9px; color:#6b7280; pointer-events:none;">▼</span>
                                 </div>
                                 <div id="hourDropdown${sectionId}"
-                                     style="display:none; position:absolute; top:100%; left:0; background:white; border:2px solid #d1d5db; border-radius:6px; margin-top:2px; width:75px; z-index:1000; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-height:200px; overflow-y:auto;">
+                                     style="display:none; position:absolute; top:100%; left:0; background:white; border:2px solid #d1d5db; border-radius:6px; margin-top:2px; width:60px; z-index:1000; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-height:200px; overflow-y:auto;">
                                     ${Array.from({length:17},(_,i)=>i+7).map(h=>{
                                         const v=String(h).padStart(2,'0');
-                                        return `<div class="hour-option" data-value="${v}" onclick="selectHourVal('${sectionId}','${v}')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:center;font-size:14px;">${v}</div>`;
+                                        return `<div class="hour-option" data-value="${v}" onclick="selectHourVal('${sectionId}','${v}')" style="padding:5px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:center;font-size:13px;">${v}</div>`;
                                     }).join('')}
                                 </div>
                             </div>
-                            <span style="font-size:16px; font-weight:700; color:#6b7280;">:</span>
+
+                            <span style="font-size:14px; font-weight:700; color:#6b7280; flex-shrink:0;">:</span>
+
                             <!-- MINUTE -->
-                            <div style="position: relative; display: inline-block;">
+                            <div style="position:relative; display:inline-block; flex-shrink:0;">
                                 <div id="minuteDisplay${sectionId}"
-                                     style="display:inline-flex; align-items:center; padding:8px 0 8px 8px; border:2px solid #d1d5db; border-radius:6px; background:white; cursor:pointer; width:75px; height:38px; box-sizing:border-box; position:relative; font-size:14px; font-weight:600; color:#1f2937;"
+                                     style="display:inline-flex; align-items:center; padding:0 0 0 6px; border:2px solid #d1d5db; border-radius:6px; background:white; cursor:pointer; width:54px; height:32px; box-sizing:border-box; position:relative; font-size:13px; font-weight:600; color:#1f2937;"
                                      onclick="toggleMinuteDropdown('${sectionId}')">
                                     <input
                                         id="minuteInput${sectionId}"
@@ -1237,36 +1241,36 @@
                                         inputmode="numeric"
                                         placeholder="00"
                                         autocomplete="off"
-                                        style="width:28px; border:none; outline:none; background:transparent; font-size:14px; font-weight:600; text-align:center; color:#1f2937; cursor:text; padding:0; flex-shrink:0;"
+                                        style="width:22px; border:none; outline:none; background:transparent; font-size:13px; font-weight:600; text-align:center; color:#1f2937; cursor:text; padding:0; flex-shrink:0;"
                                         oninput="validateMinuteInput('${sectionId}')"
                                         onblur="validateMinuteInput('${sectionId}')"
                                         onkeydown="handleMinuteKey(event,'${sectionId}','${sectionName}')"
                                         onclick="event.stopPropagation()"
                                     >
-                                    <span style="color:#d1d5db; margin:0 2px; font-size:14px; pointer-events:none;">|</span>
-                                    <span style="font-size:10px; color:#6b7280; pointer-events:none;">▼</span>
+                                    <span style="color:#d1d5db; margin:0 2px; font-size:12px; pointer-events:none;">|</span>
+                                    <span style="font-size:9px; color:#6b7280; pointer-events:none;">▼</span>
                                 </div>
                                 <div id="minuteDropdown${sectionId}"
                                      style="display:none; position:absolute; top:100%; left:0; background:white; border:2px solid #d1d5db; border-radius:6px; margin-top:2px; width:90px; z-index:1000; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
                                     <div style="position:sticky; top:0; background:white; border-bottom:2px solid #d1d5db; z-index:10;">
-                                        <div id="minuteToggle${sectionId}" onclick="toggleMinuteMode('${sectionId}')" style="padding:5px 2px; cursor:pointer; font-weight:600; color:#3b82f6; text-align:center; font-size:10px; white-space:nowrap;">▼ Chi tiết</div>
+                                        <div id="minuteToggle${sectionId}" onclick="toggleMinuteMode('${sectionId}')" style="padding:4px 2px; cursor:pointer; font-weight:600; color:#3b82f6; text-align:center; font-size:10px; white-space:nowrap;">▼ Chi tiết</div>
                                     </div>
                                     <div id="minuteOptionsScroll${sectionId}" style="max-height:150px; overflow-y:auto;">
                                         <div id="minuteOptions${sectionId}">
-                                            <div class="minute-option" data-value="00" onclick="selectMinuteVal('${sectionId}','00')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px;white-space:nowrap;">00 <span style="color:#9ca3af;font-size:11px;">(Q)</span></div>
-                                            <div class="minute-option" data-value="15" onclick="selectMinuteVal('${sectionId}','15')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px;white-space:nowrap;">15 <span style="color:#9ca3af;font-size:11px;">(W)</span></div>
-                                            <div class="minute-option" data-value="30" onclick="selectMinuteVal('${sectionId}','30')" style="padding:6px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px;white-space:nowrap;">30 <span style="color:#9ca3af;font-size:11px;">(E)</span></div>
-                                            <div class="minute-option" data-value="45" onclick="selectMinuteVal('${sectionId}','45')" style="padding:6px 8px;cursor:pointer;text-align:left;font-size:14px;white-space:nowrap;">45 <span style="color:#9ca3af;font-size:11px;">(R)</span></div>
+                                            <div class="minute-option" data-value="00" onclick="selectMinuteVal('${sectionId}','00')" style="padding:5px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:13px;white-space:nowrap;">00 <span style="color:#9ca3af;font-size:10px;">(Q)</span></div>
+                                            <div class="minute-option" data-value="15" onclick="selectMinuteVal('${sectionId}','15')" style="padding:5px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:13px;white-space:nowrap;">15 <span style="color:#9ca3af;font-size:10px;">(W)</span></div>
+                                            <div class="minute-option" data-value="30" onclick="selectMinuteVal('${sectionId}','30')" style="padding:5px 8px;cursor:pointer;border-bottom:1px solid #e5e7eb;text-align:left;font-size:13px;white-space:nowrap;">30 <span style="color:#9ca3af;font-size:10px;">(E)</span></div>
+                                            <div class="minute-option" data-value="45" onclick="selectMinuteVal('${sectionId}','45')" style="padding:5px 8px;cursor:pointer;text-align:left;font-size:13px;white-space:nowrap;">45 <span style="color:#9ca3af;font-size:10px;">(R)</span></div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <button class="btn btn-primary" onclick="addShowtimeFromInputs('${sectionId}','${sectionName}')">Thêm</button>
-                        </div>
-                        <div style="text-align:right; margin-top:6px;">
-                            <button class="btn btn-warning" onclick="showResetConfirm(this,'${sectionName}')" style="font-size:11px; padding:3px 10px;">
-                                🔄 Reset
-                            </button>
+
+                            <!-- 2 nút cùng height, cùng style -->
+                            <button onclick="addShowtimeFromInputs('${sectionId}','${sectionName}')"
+                                style="height:32px; padding:0 12px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:#3b82f6; color:white; cursor:pointer; flex-shrink:0; white-space:nowrap;">Thêm</button>
+                            <button onclick="showResetConfirm(this,'${sectionName}')"
+                                style="height:32px; padding:0 12px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:#f59e0b; color:white; cursor:pointer; flex-shrink:0; white-space:nowrap;">Reset</button>
                         </div>
                         <div class="showtimes-list" id="showtimesList${sectionId}"></div>
                     </div>
