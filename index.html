@@ -848,57 +848,52 @@
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Định dạng:</label>
-                    <select id="movieFormat">
-                        <option value="2D">2D</option>
-                        <option value="2D/3D">2D / 3D</option>
-                        <option value="2D/Cine de Kids 2D">2D / Cine de Kids 2D</option>
-                    </select>
+                <!-- Định dạng + Ngôn ngữ cùng hàng -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:6px; color:#333; font-size:14px;">Định dạng:</label>
+                        <select id="movieFormat" style="width:100%; padding:8px; border:2px solid #dee2e6; border-radius:6px; font-size:13px;">
+                            <option value="2D">2D</option>
+                            <option value="2D/3D">2D / 3D</option>
+                            <option value="2D/Cine de Kids 2D">2D / Cine de Kids 2D</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:6px; color:#333; font-size:14px;">Ngôn ngữ:</label>
+                        <select id="movieLanguage" style="width:100%; padding:8px; border:2px solid #dee2e6; border-radius:6px; font-size:13px;">
+                            <option value="Phụ đề" selected>Phụ đề</option>
+                            <option value="Lồng Tiếng">Lồng Tiếng</option>
+                            <option value="Phụ đề/Lồng Tiếng">Phụ đề / Lồng Tiếng</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Ngôn ngữ:</label>
-                    <select id="movieLanguage">
-                        <option value="Phụ đề" selected>Phụ đề</option>
-                        <option value="Lồng Tiếng">Lồng Tiếng</option>
-                        <option value="Phụ đề/Lồng Tiếng">Phụ đề / Lồng Tiếng</option>
-                    </select>
+                <!-- Độ tuổi + SneakShow cùng hàng -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:end; margin-bottom:12px;">
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:6px; color:#333; font-size:14px;">Độ tuổi:</label>
+                        <select id="ageRating" style="width:100%; padding:8px; border:2px solid #dee2e6; border-radius:6px; font-size:13px;">
+                            <option value="P">P - Mọi lứa tuổi</option>
+                            <option value="K">K - Dưới 13 tuổi với phụ huynh</option>
+                            <option value="T13">T13 - Từ 13 tuổi</option>
+                            <option value="T16">T16 - Từ 16 tuổi</option>
+                            <option value="T18">T18 - Từ 18 tuổi</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:flex; align-items:center; justify-content:center; gap:6px; padding:8px 12px; background:white; border:2px solid #dee2e6; border-radius:6px; cursor:pointer; font-weight:600; font-size:13px; white-space:nowrap; height:38px; box-sizing:border-box; width:100%;">
+                            <input type="checkbox" id="sneakShow" style="cursor:pointer;"> SneakShow
+                        </label>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Suất chiếu:</label>
-                    <label style="display: inline-flex; align-items: center; gap: 5px; padding: 8px 12px; background: white; border: 2px solid #dee2e6; border-radius: 6px; cursor: pointer;">
-                        <input type="checkbox" id="sneakShow" style="cursor: pointer;"> SneakShow
-                    </label>
-                </div>
+                <div id="showtimeSections"></div>
 
-                <div class="form-group">
-                    <label>Độ tuổi:</label>
-                    <select id="ageRating">
-                        <option value="P">P - Mọi lứa tuổi</option>
-                        <option value="K">K - Dưới 13 tuổi với phụ huynh</option>
-                        <option value="T13">T13 - Từ 13 tuổi</option>
-                        <option value="T16">T16 - Từ 16 tuổi</option>
-                        <option value="T18">T18 - Từ 18 tuổi</option>
-                    </select>
-                </div>
-
-                <!-- Nút reset tất cả giờ chiếu -->
-                <div style="margin: 15px 0;">
-                    <button class="btn btn-warning btn-block" onclick="showResetAllConfirm(this)" style="font-size: 15px;">
-                        🔄 Reset tất cả giờ chiếu
-                    </button>
-                </div>
-
-                <div id="showtimeSections">
-                    <!-- Sections will be generated dynamically based on format + language -->
-                </div>
-
-                <button class="btn btn-success btn-block" onclick="saveMovie()">💾 Lưu phim</button>
-
-                <div class="import-export-section" style="margin-top: 20px;">
-                </div>
+                <!-- Nút Lưu phim nổi bật hơn -->
+                <button class="btn btn-success btn-block" onclick="saveMovie()"
+                    style="margin-top:16px; padding:14px; font-size:16px; font-weight:700; border-radius:8px; letter-spacing:0.5px; box-shadow:0 4px 12px rgba(16,185,129,0.4);">
+                    💾 Lưu phim
+                </button>
             </div>
 
             <div class="right-panel">
@@ -930,7 +925,7 @@
 
     <!-- Version badge cố định góc phải cuối màn hình -->
     <div style="position:fixed; bottom:12px; right:16px; background:#1f2937; color:#9ca3af; font-family:monospace; font-size:11px; padding:4px 10px; border-radius:6px; z-index:9999; user-select:none; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
-        v1.53
+        v1.55
     </div>
 
     <!-- Thông báo mất mạng -->
@@ -1267,6 +1262,11 @@
                                 </div>
                             </div>
                             <button class="btn btn-primary" onclick="addShowtimeFromInputs('${sectionId}','${sectionName}')">Thêm</button>
+                        </div>
+                        <div style="text-align:right; margin-top:6px;">
+                            <button class="btn btn-warning" onclick="showResetConfirm(this,'${sectionName}')" style="font-size:11px; padding:3px 10px;">
+                                🔄 Reset
+                            </button>
                         </div>
                         <div class="showtimes-list" id="showtimesList${sectionId}"></div>
                     </div>
