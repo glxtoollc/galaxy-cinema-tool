@@ -2640,13 +2640,22 @@
             return cache.filter(m => m.lastUsed >= now - TEN_DAYS);
         }
 
+        function getPosterFingerprint(poster) {
+            if (!poster) return '';
+            const len = poster.length;
+            const head = poster.substring(0, 50);
+            const mid  = poster.substring(Math.floor(len / 2), Math.floor(len / 2) + 50);
+            const tail = poster.slice(-50);
+            return len + '_' + head + mid + tail;
+        }
+
         function saveMovieToCache(name, poster, rating, format, language) {
             let cache = loadMovieCache();
             cache = filterOldMovies(cache);
-            // ✅ uniqueMovieId = tên + 100 ký tự đầu poster (tránh trùng khi cùng poster khác phim)
-            const uniqueMovieId = name.trim().toLowerCase() + '_' + (poster || '').substring(0, 100);
+            const posterFingerprint = getPosterFingerprint(poster);
+            const uniqueMovieId = name.trim().toLowerCase() + '_' + posterFingerprint;
             const existingIdx = cache.findIndex(m => m.uniqueMovieId === uniqueMovieId);
-            const entry = { uniqueMovieId, name, poster, rating, format, language: language || '', lastUsed: Date.now() };
+            const entry = { uniqueMovieId, posterFingerprint, name, poster, rating, format, language: language || '', lastUsed: Date.now() };
             if (existingIdx !== -1) {
                 cache[existingIdx] = entry;
             } else {
@@ -2743,9 +2752,23 @@
                 document.getElementById('posterPreview').style.display = 'block';
 
                 const cache = filterOldMovies(loadMovieCache());
+                const fingerprint = getPosterFingerprint(posterData);
 
-                // ✅ Chỉ match full base64 — tránh false positive do header ảnh giống nhau
-                const match = cache.find(m => m.poster === posterData);
+                // Lấy tất cả entries khớp fingerprint
+                const fingerprintMatches = cache.filter(m => m.posterFingerprint === fingerprint);
+
+                let match = null;
+
+                if (fingerprintMatches.length === 1) {
+                    // Chỉ 1 kết quả → chắc chắn đúng
+                    match = fingerprintMatches[0];
+                } else if (fingerprintMatches.length > 1) {
+                    // Nhiều phim cùng poster → không thể biết chắc → bỏ qua, không fill
+                    match = null;
+                } else {
+                    // Fallback: cache cũ chưa có fingerprint → so full base64
+                    match = cache.find(m => m.poster === posterData) || null;
+                }
 
                 if (!match) return;
 
