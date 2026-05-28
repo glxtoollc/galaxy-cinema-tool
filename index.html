@@ -2792,10 +2792,21 @@
         loadData();
         console.log('✅ Khởi tạo hoàn tất');
 
-        // Khởi tạo cache: lọc phim cũ ngay khi load
+        // Khởi tạo cache: lọc phim cũ + migrate fingerprint cũ sang mới
         (function initMovieCache() {
-            const cache = filterOldMovies(loadMovieCache());
+            let cache = filterOldMovies(loadMovieCache());
+            let migrated = false;
+            cache = cache.map(entry => {
+                const correctFingerprint = getPosterFingerprint(entry.poster);
+                const correctUniqueId = (entry.name || '').trim().toLowerCase() + '_' + correctFingerprint;
+                if (entry.posterFingerprint !== correctFingerprint || entry.uniqueMovieId !== correctUniqueId) {
+                    migrated = true;
+                    return { ...entry, posterFingerprint: correctFingerprint, uniqueMovieId: correctUniqueId };
+                }
+                return entry;
+            });
             saveMovieCacheToStorage(cache);
+            if (migrated) console.log('🔄 Movie cache: đã migrate fingerprint mới');
             console.log(`🎬 Movie cache: ${cache.length} phim`);
         })();
 
