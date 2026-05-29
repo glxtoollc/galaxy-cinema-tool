@@ -877,7 +877,7 @@
                             <option value="K">K - Dưới 13 tuổi với phụ huynh</option>
                             <option value="T13">T13 - Từ 13 tuổi</option>
                             <option value="T16">T16 - Từ 16 tuổi</option>
-                            <option value="T18">T18 - Từ 18 tuổi</option>
+                            <option value="T18" selected>T18 - Từ 18 tuổi</option>
                         </select>
                     </div>
                     <div>
@@ -926,7 +926,7 @@
 
     <!-- Version badge cố định góc phải cuối màn hình -->
     <div style="position:fixed; bottom:12px; right:16px; background:#1f2937; color:#9ca3af; font-family:monospace; font-size:11px; padding:4px 10px; border-radius:6px; z-index:9999; user-select:none; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
-        v1.64
+        v1.66
     </div>
 
     <!-- Thông báo mất mạng -->
@@ -1240,6 +1240,7 @@
                                         maxlength="2"
                                         inputmode="numeric"
                                         placeholder="00"
+                                        value="00"
                                         autocomplete="off"
                                         style="width:22px; border:none; outline:none; background:transparent; font-size:13px; font-weight:600; text-align:center; color:#1f2937; cursor:text; padding:0; flex-shrink:0;"
                                         oninput="validateMinuteInput('${sectionId}')"
@@ -1297,15 +1298,20 @@
 
         window.handleHourInput = function(e, sectionId) {
             const input = e.target;
-            // Chỉ cho số
             input.value = input.value.replace(/\D/g, '');
             input.style.borderColor = '#d1d5db';
-            // Tự động sang minute khi nhập đủ 2 chữ số
             if (input.value.length === 2) {
                 const h = parseInt(input.value);
                 if (h >= 0 && h <= 23) {
                     const min = document.getElementById(`minuteInput${sectionId}`);
-                    if (min) { min.focus(); min.select(); }
+                    if (min) {
+                        min.focus();
+                        min.select();
+                        // Nếu phút đã là 00 thì select all để dễ thay
+                        if (min.value === '00' || min.value === '') {
+                            min.value = '00';
+                        }
+                    }
                 } else {
                     input.style.borderColor = '#ef4444';
                 }
@@ -1327,16 +1333,13 @@
         window.validateMinuteInput = function(sectionId) {
             const input = document.getElementById(`minuteInput${sectionId}`);
             if (!input) return;
-            // Chỉ cho số
             input.value = input.value.replace(/\D/g, '');
-            if (!input.value) return;
+            if (!input.value) { input.value = '00'; return; }
             const m = parseInt(input.value);
             if (isNaN(m) || m < 0 || m > 59) {
                 input.style.borderColor = '#ef4444';
             } else {
-                if (input.value.length === 2) {
-                    input.value = String(m).padStart(2, '0');
-                }
+                if (input.value.length === 2) input.value = String(m).padStart(2, '0');
                 input.style.borderColor = '#d1d5db';
             }
         };
@@ -1345,15 +1348,38 @@
             if (e.key === 'Enter') {
                 e.preventDefault();
                 const min = document.getElementById(`minuteInput${sectionId}`);
-                if (min && !min.value) { min.focus(); }
-                else { addShowtimeFromInputs(sectionId, sectionName); }
+                if (min && (!min.value || min.value === '00')) {
+                    min.value = '00';
+                    addShowtimeFromInputs(sectionId, sectionName);
+                } else if (min && !min.value) {
+                    min.focus();
+                } else {
+                    addShowtimeFromInputs(sectionId, sectionName);
+                }
+            }
+            // Phím tắt QWER khi đang focus hour input
+            if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+                const key = e.key.toLowerCase();
+                if (key === 'a' || key === 'ă' || key === 'â') { e.preventDefault(); selectHourVal(sectionId, '07'); }
+                else if (key === 's') { e.preventDefault(); selectHourVal(sectionId, '08'); }
+                else if (key === 'd' || key === 'đ') { e.preventDefault(); selectHourVal(sectionId, '09'); }
             }
         };
 
         window.handleMinuteKey = function(e, sectionId, sectionName) {
             if (e.key === 'Enter') {
                 e.preventDefault();
+                const input = document.getElementById(`minuteInput${sectionId}`);
+                if (!input.value) input.value = '00';
                 addShowtimeFromInputs(sectionId, sectionName);
+            }
+            // Phím tắt QWER khi đang focus minute input
+            if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+                const key = e.key.toLowerCase();
+                if (key === 'q') { e.preventDefault(); selectMinuteVal(sectionId, '00'); }
+                else if (key === 'w' || key === 'ư') { e.preventDefault(); selectMinuteVal(sectionId, '15'); }
+                else if (key === 'e' || key === 'ê') { e.preventDefault(); selectMinuteVal(sectionId, '30'); }
+                else if (key === 'r') { e.preventDefault(); selectMinuteVal(sectionId, '45'); }
             }
         };
 
@@ -2798,17 +2824,13 @@
                 const cache = filterOldMovies(loadMovieCache());
                 const fingerprint = getPosterFingerprint(posterData);
 
-                // Lấy tất cả entries khớp fingerprint
+                // Match theo fingerprint — mỗi poster khác nhau có fingerprint khác nhau
                 const fingerprintMatches = cache.filter(m => m.posterFingerprint === fingerprint);
 
                 let match = null;
-
-                if (fingerprintMatches.length === 1) {
-                    // Chỉ 1 kết quả → chắc chắn đúng
+                if (fingerprintMatches.length >= 1) {
+                    // Lấy entry đầu tiên khớp — cùng fingerprint = cùng file ảnh = cùng phim
                     match = fingerprintMatches[0];
-                } else if (fingerprintMatches.length > 1) {
-                    // Nhiều phim cùng poster → không thể biết chắc → bỏ qua, không fill
-                    match = null;
                 } else {
                     // Fallback: cache cũ chưa có fingerprint → so full base64
                     match = cache.find(m => m.poster === posterData) || null;
