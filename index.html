@@ -926,7 +926,7 @@
 
     <!-- Version badge cố định góc phải cuối màn hình -->
     <div style="position:fixed; bottom:12px; right:16px; background:#1f2937; color:#9ca3af; font-family:monospace; font-size:11px; padding:4px 10px; border-radius:6px; z-index:9999; user-select:none; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
-        v1.66
+        v1.67
     </div>
 
     <!-- Thông báo mất mạng -->
@@ -1685,12 +1685,14 @@
             }
         }
 
-        async function silentSaveToCloud() {
+        async function silentSaveToCloud(silent = false) {
             if (!database) return;
             try {
                 await database.ref('latest-data').set(moviesData);
                 console.log('✅ Auto-saved to Firebase after download');
-                showToast('Đã lưu lịch chiếu', 'save');
+                if (!silent) {
+                    showToast('Đã lưu lịch chiếu', 'save');
+                }
             } catch (e) {
                 console.error('❌ Auto-save failed:', e.message);
             }
@@ -1869,6 +1871,8 @@
             saveToLocalStorage();
             // ✅ Lưu vào cache để autocomplete lần sau
             saveMovieToCache(title, currentPosterData, ageRating, format, language);
+            // ✅ Sync Firebase ngay sau khi lưu phim (không hiện toast)
+            silentSaveToCloud(true);
             resetForm();
             loadData();
             
