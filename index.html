@@ -926,7 +926,7 @@
 
     <!-- Version badge cố định góc phải cuối màn hình -->
     <div style="position:fixed; bottom:12px; right:16px; background:#1f2937; color:#9ca3af; font-family:monospace; font-size:11px; padding:4px 10px; border-radius:6px; z-index:9999; user-select:none; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
-        v1.67
+        v1.68
     </div>
 
     <!-- Thông báo mất mạng -->
@@ -2736,6 +2736,7 @@
                 cache.push(entry);
             }
             saveMovieCacheToStorage(cache);
+            console.log('💾 SAVING TO CACHE:', { name, fingerprint: posterFingerprint.substring(0, 30), uniqueMovieId: uniqueMovieId.substring(0, 40) });
         }
 
         function handleAutocomplete() {
@@ -2827,17 +2828,20 @@
 
                 const cache = filterOldMovies(loadMovieCache());
                 const fingerprint = getPosterFingerprint(posterData);
+                console.log('🔍 LOOKUP CACHE: fingerprint=', fingerprint.substring(0, 30));
+                console.log('🔍 CACHE entries:', cache.map(m => ({ name: m.name, fp: m.posterFingerprint?.substring(0, 30) })));
 
                 // Match theo fingerprint — mỗi poster khác nhau có fingerprint khác nhau
                 const fingerprintMatches = cache.filter(m => m.posterFingerprint === fingerprint);
 
                 let match = null;
                 if (fingerprintMatches.length >= 1) {
-                    // Lấy entry đầu tiên khớp — cùng fingerprint = cùng file ảnh = cùng phim
                     match = fingerprintMatches[0];
+                    console.log('✅ CACHE MATCH FOUND:', match.name);
                 } else {
-                    // Fallback: cache cũ chưa có fingerprint → so full base64
                     match = cache.find(m => m.poster === posterData) || null;
+                    if (match) console.log('✅ CACHE MATCH (fallback base64):', match.name);
+                    else console.log('❌ NO CACHE MATCH');
                 }
 
                 if (!match) return;
@@ -2911,22 +2915,11 @@
         loadData();
         console.log('✅ Khởi tạo hoàn tất');
 
-        // Khởi tạo cache: lọc phim cũ + migrate fingerprint cũ sang mới
+        // Khởi tạo cache: chỉ lọc phim cũ, KHÔNG tính lại fingerprint
         (function initMovieCache() {
-            let cache = filterOldMovies(loadMovieCache());
-            let migrated = false;
-            cache = cache.map(entry => {
-                const correctFingerprint = getPosterFingerprint(entry.poster);
-                const correctUniqueId = (entry.name || '').trim().toLowerCase() + '_' + correctFingerprint;
-                if (entry.posterFingerprint !== correctFingerprint || entry.uniqueMovieId !== correctUniqueId) {
-                    migrated = true;
-                    return { ...entry, posterFingerprint: correctFingerprint, uniqueMovieId: correctUniqueId };
-                }
-                return entry;
-            });
+            const cache = filterOldMovies(loadMovieCache());
             saveMovieCacheToStorage(cache);
-            if (migrated) console.log('🔄 Movie cache: đã migrate fingerprint mới');
-            console.log(`🎬 Movie cache: ${cache.length} phim`);
+            console.log(`🎬 Movie cache: ${cache.length} phim`, cache.map(m => ({ name: m.name, fp: m.posterFingerprint?.substring(0, 30) })));
         })();
 
         document.getElementById('movieTitle').addEventListener('paste', function (e) {
