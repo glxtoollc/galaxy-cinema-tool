@@ -926,7 +926,7 @@
 
     <!-- Version badge cố định góc phải cuối màn hình -->
     <div style="position:fixed; bottom:12px; right:16px; background:#1f2937; color:#9ca3af; font-family:monospace; font-size:11px; padding:4px 10px; border-radius:6px; z-index:9999; user-select:none; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
-        v1.68
+        v1.70
     </div>
 
     <!-- Thông báo mất mạng -->
@@ -1811,8 +1811,8 @@
 
         function saveMovie() {
             const title = document.getElementById('movieTitle').value.trim();
-            const format = document.getElementById('movieFormat').value;
-            const language = document.getElementById('movieLanguage').value;
+            const format = document.getElementById('movieFormat').value || '2D';
+            const language = document.getElementById('movieLanguage').value || 'Phụ đề';
             const ageRating = document.getElementById('ageRating').value;
             const sneakShow = document.getElementById('sneakShow').checked;
 
@@ -1889,8 +1889,8 @@
 
         function resetForm() {
             document.getElementById('movieTitle').value = '';
-            document.getElementById('movieFormat').value = '';
-            document.getElementById('movieLanguage').value = '';
+            document.getElementById('movieFormat').value = '2D';
+            document.getElementById('movieLanguage').value = 'Phụ đề';
             document.getElementById('sneakShow').checked = false;
             document.getElementById('posterInput').value = '';
             document.getElementById('posterPreview').style.display = 'none';
@@ -2679,11 +2679,12 @@
             }, 3000);
         }
 
-        // ✅ FIX: Reset saved khi đổi rạp
+        // ✅ FIX: Reset saved khi đổi rạp + reset posterInput để change event luôn trigger
         document.getElementById('cinemaSelect').addEventListener('change', function() {
             Object.keys(moviesData).forEach(cinema => {
                 (moviesData[cinema] || []).forEach(movie => { movie.saved = false; });
             });
+            document.getElementById('posterInput').value = '';
             loadData();
         });
 
