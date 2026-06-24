@@ -926,7 +926,7 @@
 
     <!-- Version badge cố định góc phải cuối màn hình -->
     <div style="position:fixed; bottom:12px; right:16px; background:#1f2937; color:#9ca3af; font-family:monospace; font-size:11px; padding:4px 10px; border-radius:6px; z-index:9999; user-select:none; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
-        v1.70
+        v1.71
     </div>
 
     <!-- Thông báo mất mạng -->
@@ -2717,11 +2717,9 @@
 
         function getPosterFingerprint(poster) {
             if (!poster) return '';
-            const len = poster.length;
-            const head = poster.substring(0, 50);
-            const mid  = poster.substring(Math.floor(len / 2), Math.floor(len / 2) + 50);
-            const tail = poster.slice(-50);
-            return len + '_' + head + mid + tail;
+            // Dùng length + 100 ký tự cuối — phần cuối base64 là unique nhất
+            // Tránh dùng head vì mọi JPEG đều bắt đầu bằng "data:image/jpeg;base64,/9j/..."
+            return poster.length + '_' + poster.slice(-100);
         }
 
         function saveMovieToCache(name, poster, rating, format, language) {
@@ -2916,11 +2914,19 @@
         loadData();
         console.log('✅ Khởi tạo hoàn tất');
 
-        // Khởi tạo cache: chỉ lọc phim cũ, KHÔNG tính lại fingerprint
+        // Khởi tạo cache: lọc phim cũ + xóa entries có fingerprint format cũ (head+mid+tail)
         (function initMovieCache() {
-            const cache = filterOldMovies(loadMovieCache());
+            let cache = filterOldMovies(loadMovieCache());
+            // Fingerprint cũ có dạng: "12345_data:image/jpeg..." (chứa "data:" trong fingerprint)
+            // Fingerprint mới có dạng: "12345_<100 ký tự cuối>" (không chứa "data:")
+            cache = cache.filter(m => {
+                if (!m.posterFingerprint) return false;
+                // Xóa fingerprint cũ: phần sau dấu _ đầu tiên bắt đầu bằng "data:"
+                const afterUnderscore = m.posterFingerprint.split('_').slice(1).join('_');
+                return !afterUnderscore.startsWith('data:');
+            });
             saveMovieCacheToStorage(cache);
-            console.log(`🎬 Movie cache: ${cache.length} phim`, cache.map(m => ({ name: m.name, fp: m.posterFingerprint?.substring(0, 30) })));
+            console.log(`🎬 Movie cache: ${cache.length} phim`, cache.map(m => ({ name: m.name, fp: m.posterFingerprint?.slice(-20) })));
         })();
 
         document.getElementById('movieTitle').addEventListener('paste', function (e) {
